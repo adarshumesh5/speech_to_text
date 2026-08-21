@@ -143,12 +143,11 @@ def main(argv: list[str] | None = None) -> int:
     poll.start()
 
     service.start()
-    window.show()
     tray.show()
 
-    # start minimized → land quietly in the tray, out of the way
-    if config.start_minimized or wanted["minimized"]:
-        window.hide()
+    # Always start hidden to avoid stealing focus from the user's app.
+    # The window shows only when the user explicitly opens it.
+    window.hide()
     if wanted["dictate"]:
         service.record("jump")
     elif wanted["dictionary"]:
@@ -186,9 +185,6 @@ def _dispatch_commands() -> None:
             return
         command = payload.get("command", "")
         if command == "dictate":
-            window.show()
-            window.raise_()
-            window.activateWindow()
             window.service.record("jump")
         elif command == "dictionary":
             window.show()
