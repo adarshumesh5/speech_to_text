@@ -18,17 +18,17 @@ from PySide6.QtCore import QTimer
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication
 
-from sotto import APP_ID, APP_NAME, APP_TAGLINE, __version__
-from sotto.config import APP_DATA_DIR, Config, migrate_from_sotto
-from sotto.dictation import DictationService
-from sotto.dictionary import Dictionary
-from sotto.history import HistoryStore
-from sotto.ipc import CommandServer, send_command
-from sotto.jumplist import install_jump_list, set_app_user_model_id
-from sotto.ui.main_window import MainWindow
-from sotto.ui.settings_window import SettingsWindow
-from sotto.ui.theme import QSS
-from sotto.ui.tray import Tray, asset_path
+from grogu import APP_ID, APP_NAME, APP_TAGLINE, __version__
+from grogu.config import APP_DATA_DIR, Config, migrate_from_sotto
+from grogu.dictation import DictationService
+from grogu.dictionary import Dictionary
+from grogu.history import HistoryStore
+from grogu.ipc import CommandServer, send_command
+from grogu.jumplist import install_jump_list, set_app_user_model_id
+from grogu.ui.main_window import MainWindow
+from grogu.ui.settings_window import SettingsWindow
+from grogu.ui.theme import QSS
+from grogu.ui.tray import Tray, asset_path
 
 log = logging.getLogger(__name__)
 
@@ -36,7 +36,7 @@ COMMANDS: queue.Queue[dict] = queue.Queue()
 
 
 def _setup_logging(level: str) -> str:
-    log_path = os.path.join(APP_DATA_DIR, "sotto.log")
+    log_path = os.path.join(APP_DATA_DIR, "grogu.log")
     os.makedirs(APP_DATA_DIR, exist_ok=True)
     logging.basicConfig(
         filename=log_path,
@@ -120,7 +120,7 @@ def main(argv: list[str] | None = None) -> int:
         settings.activateWindow()
 
     window.on_settings = show_settings
-    app._sotto_window = window
+    app._grogu_window = window
     service.dictation_done.connect(_on_dictation_done)
     service.error.connect(window.on_service_error)
 
@@ -174,7 +174,7 @@ def _dispatch_commands() -> None:
     app = QApplication.instance()
     if app is None:
         return
-    window = getattr(app, "_sotto_window", None)
+    window = getattr(app, "_grogu_window", None)
     if window is None:
         return
     tray = getattr(window, "_tray", None)
@@ -209,7 +209,7 @@ def _on_dictation_done(entry: dict) -> None:
     from PySide6.QtWidgets import QApplication
 
     app = QApplication.instance()
-    window = getattr(app, "_sotto_window", None)
+    window = getattr(app, "_grogu_window", None)
     if window is None:
         return
     window.add_history_entry(entry)

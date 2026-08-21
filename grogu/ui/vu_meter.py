@@ -14,7 +14,7 @@ from PySide6.QtCore import QRectF, Qt, QTimer
 from PySide6.QtGui import QColor, QFont, QLinearGradient, QPainter, QPen
 from PySide6.QtWidgets import QWidget
 
-from sotto.ui.design_tokens import Color, Motion, Radius, Type
+from grogu.ui.design_tokens import Color, Motion, Radius, Type
 
 DB_MIN, DB_MAX = -20.0, 3.0
 DB_GREEN_SPLIT = -3.0

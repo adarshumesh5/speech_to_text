@@ -28,7 +28,7 @@ import time
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
-from sotto.config import APP_DATA_DIR
+from grogu.config import APP_DATA_DIR
 
 DICTIONARY_PATH = os.path.join(APP_DATA_DIR, "dictionary.json")
 

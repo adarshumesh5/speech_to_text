@@ -1,8 +1,8 @@
-"""Tests for sotto.dictionary."""
+"""Tests for grogu.dictionary."""
 
 import pytest
 
-from sotto.dictionary import (
+from grogu.dictionary import (
     BIASING_MAX_WORDS,
     Dictionary,
     WordEntry,

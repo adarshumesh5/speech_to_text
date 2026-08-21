@@ -5,7 +5,7 @@ a small PowerShell helper (``scripts/jumplist.ps1``). Raw ctypes
 ``ICustomDestinationList`` calls crash inside ``windows.storage.dll`` on some
 Windows builds when made from Python processes (observed deterministically on
 this machine), while the WPF path is reliable — so we use the helper.    Each task launches ``Grogu.exe --<command>``; the running instance receives
-    it through the command pipe (see ``sotto.ipc``). Best effort: failures are
+    it through the command pipe (see ``grogu.ipc``). Best effort: failures are
     logged and ignored — the tray menu covers the same actions.
 """
 

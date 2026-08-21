@@ -19,20 +19,20 @@ import time
 
 from PySide6.QtCore import QObject, QTimer, Signal
 
-from sotto.audio import MicRecorder
-from sotto.caret import CaretTracker
-from sotto.cleaner import build_cleaner
-from sotto.cues import play_start as _cue_start, play_stop as _cue_stop
-from sotto.dictionary import Dictionary
-from sotto.hotkey import HotkeyListener, is_key_down
-from sotto.injector import (
+from grogu.audio import MicRecorder
+from grogu.caret import CaretTracker
+from grogu.cleaner import build_cleaner
+from grogu.cues import play_start as _cue_start, play_stop as _cue_stop
+from grogu.dictionary import Dictionary
+from grogu.hotkey import HotkeyListener, is_key_down
+from grogu.injector import (
     get_foreground_hwnd,
     get_window_title,
     is_own_window,
     select_back,
     send_text,
 )
-from sotto.stt import SttEngine
+from grogu.stt import SttEngine
 
 log = logging.getLogger(__name__)
 
@@ -163,7 +163,7 @@ class DictationService(QObject):
             finally:
                 self._engine_ready.set()
 
-        threading.Thread(target=load, name="sotto-engine", daemon=True).start()
+        threading.Thread(target=load, name="grogu-engine", daemon=True).start()
 
     def _ensure_engine(self) -> SttEngine:
         if self._engine is None:
@@ -368,7 +368,7 @@ class DictationService(QObject):
         threading.Thread(
             target=self._process,
             args=(audio,),
-            name="sotto-dictation",
+            name="grogu-dictation",
             daemon=True,
         ).start()
 
@@ -549,4 +549,4 @@ class DictationService(QObject):
             finally:
                 self._set_state(STATE_IDLE)
 
-        threading.Thread(target=work, name="sotto-undo", daemon=True).start()
+        threading.Thread(target=work, name="grogu-undo", daemon=True).start()

@@ -201,7 +201,7 @@ class HotkeyListener:
             return
         self._modifiers, self._vk = parse_hotkey(self.spec)
         self._stop.clear()
-        self._thread = threading.Thread(target=self._run, name="sotto-hotkey",
+        self._thread = threading.Thread(target=self._run, name="grogu-hotkey",
                                         daemon=True)
         self._thread.start()
 

@@ -16,7 +16,7 @@ from PySide6.QtCore import QPointF, QRectF, Qt, QTimer
 from PySide6.QtGui import QColor, QLinearGradient, QPainter, QPen
 from PySide6.QtWidgets import QWidget
 
-from sotto.ui.design_tokens import Color, Motion
+from grogu.ui.design_tokens import Color, Motion
 
 HILT_W = 96      # hilt footprint (px)
 BLADE_MAX = 0.72  # blade reaches 72% of the widget width

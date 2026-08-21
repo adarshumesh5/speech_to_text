@@ -11,7 +11,7 @@ from PySide6.QtCore import QPointF, QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QMouseEvent, QPainter, QPen
 from PySide6.QtWidgets import QWidget
 
-from sotto.ui.design_tokens import Color, Component, Motion, Radius, Type
+from grogu.ui.design_tokens import Color, Component, Motion, Radius, Type
 
 
 class TransportButton(QWidget):

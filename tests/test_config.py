@@ -1,8 +1,8 @@
-"""Tests for sotto.config."""
+"""Tests for grogu.config."""
 
 import json
 
-from sotto.config import Config
+from grogu.config import Config
 
 
 def test_defaults():
@@ -61,7 +61,7 @@ def test_auto_device_resolution():
 
 def test_migrate_from_sotto(tmp_path, monkeypatch):
     """First run of Grogu copies the old Sotto data folder over."""
-    import sotto.config as cfg
+    import grogu.config as cfg
 
     old = tmp_path / "Sotto"
     old.mkdir()
@@ -82,7 +82,7 @@ def test_migrate_from_sotto(tmp_path, monkeypatch):
 
 
 def test_migrate_skips_when_target_exists(tmp_path, monkeypatch):
-    import sotto.config as cfg
+    import grogu.config as cfg
 
     old = tmp_path / "Sotto"
     old.mkdir()
@@ -99,7 +99,7 @@ def test_migrate_skips_when_target_exists(tmp_path, monkeypatch):
 
 
 def test_migrate_noop_without_legacy(tmp_path, monkeypatch):
-    import sotto.config as cfg
+    import grogu.config as cfg
 
     monkeypatch.setattr(cfg, "LEGACY_DATA_DIR", str(tmp_path / "nope"))
     monkeypatch.setattr(cfg, "APP_DATA_DIR", str(tmp_path / "Grogu"))

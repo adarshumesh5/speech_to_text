@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from sotto.ui.design_tokens import Color, Space, Type
+from grogu.ui.design_tokens import Color, Space, Type
 
 # shared column geometry (px)
 COL_TS = 66

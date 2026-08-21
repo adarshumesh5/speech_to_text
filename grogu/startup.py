@@ -29,7 +29,7 @@ def launch_command() -> str:
         python = python[:-4] + "w.exe"
     if not os.path.exists(python):
         python = sys.executable
-    return f'"{python}" -m sotto --minimized'
+    return f'"{python}" -m grogu --minimized'
 
 
 def is_enabled() -> bool:

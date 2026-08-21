@@ -17,9 +17,9 @@ import os
 from PIL import Image, ImageDraw
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-OUT = os.path.join(ROOT, "sotto", "ui", "assets")
+OUT = os.path.join(ROOT, "grogu", "ui", "assets")
 
-# palette mirrors sotto.ui.design_tokens (duplicated here only so the asset
+# palette mirrors grogu.ui.design_tokens (duplicated here only so the asset
 # script has no runtime dependency on the app)
 INK = (11, 14, 19)
 PANEL = (19, 23, 32)

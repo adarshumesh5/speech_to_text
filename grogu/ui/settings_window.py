@@ -18,20 +18,20 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from sotto import APP_NAME
-from sotto.audio import list_input_devices
-from sotto.config import (
+from grogu import APP_NAME
+from grogu.audio import list_input_devices
+from grogu.config import (
     CLEANERS,
     INSERTION_MODES,
     LANGUAGES,
     MODELS,
     Config,
 )
-from sotto.hotkey import hotkey_error_text, parse_hotkey, test_register
-from sotto.startup import is_enabled, set_enabled
-from sotto.ui.design_tokens import Color, Space, Type
-from sotto.ui.main_window import apply_dark_title_bar
-from sotto.ui.theme import QSS
+from grogu.hotkey import hotkey_error_text, parse_hotkey, test_register
+from grogu.startup import is_enabled, set_enabled
+from grogu.ui.design_tokens import Color, Space, Type
+from grogu.ui.main_window import apply_dark_title_bar
+from grogu.ui.theme import QSS
 
 MODE_LABELS = {
     "hold": "Hold to talk (press & hold while speaking)",
@@ -294,7 +294,7 @@ class SettingsWindow(QDialog):
                 QMessageBox.warning(
                     self, APP_NAME,
                     "Could not update the Start-with-Windows registry entry.\n"
-                    "You can add Sotto to startup manually via Task Manager → "
+                    "You can add Grogu to startup manually via Task Manager → "
                     "Startup apps.",
                 )
         self.config.save()

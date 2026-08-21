@@ -9,7 +9,7 @@
     <MajorUpgrade DowngradeErrorMessage="A newer version of Grogu is already installed." />
     <Media Id="1" Cabinet="grogu.cab" EmbedCab="yes" />
 
-    <Icon Id="GroguIcon" SourceFile="sotto/ui/assets/app.ico" />
+    <Icon Id="GroguIcon" SourceFile="grogu/ui/assets/app.ico" />
     <Property Id="ARPPRODUCTICON" Value="GroguIcon" />
     <Property Id="ARPCOMMENTS" Value="The Force speaks. It writes." />
 

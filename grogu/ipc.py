@@ -73,7 +73,7 @@ class CommandServer:
         self._thread: threading.Thread | None = None
 
     def start(self) -> None:
-        self._thread = threading.Thread(target=self._run, name="sotto-ipc",
+        self._thread = threading.Thread(target=self._run, name="grogu-ipc",
                                         daemon=True)
         self._thread.start()
 

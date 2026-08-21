@@ -15,7 +15,7 @@ Set-Location $root
 
 # --- 1. PyInstaller --------------------------------------------------------
 Write-Host "==> PyInstaller (onedir)"
-& .venv\Scripts\python.exe -m PyInstaller --noconfirm sotto.spec
+& .venv\Scripts\python.exe -m PyInstaller --noconfirm grogu.spec
 if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed" }
 
 # --- 2. WiX v3 -------------------------------------------------------------
@@ -55,9 +55,9 @@ if ($LASTEXITCODE -ne 0) { throw "heat failed" }
 
 Write-Host "==> candle"
 & $candle -arch x64 -ext WixUIExtension `
-    (Join-Path $root "sotto.wxs") `
+    (Join-Path $root "grogu.wxs") `
     -out (Join-Path $wixOut "grogu.wixobj")
-if ($LASTEXITCODE -ne 0) { throw "candle (sotto.wxs) failed" }
+if ($LASTEXITCODE -ne 0) { throw "candle (grogu.wxs) failed" }
 & $candle -arch x64 -ext WixUIExtension `
     (Join-Path $wixOut "grogu-files.wxs") `
     -out (Join-Path $wixOut "grogu-files.wixobj")

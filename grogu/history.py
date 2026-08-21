@@ -19,7 +19,7 @@ import os
 import time
 from typing import Any
 
-from sotto.config import APP_DATA_DIR
+from grogu.config import APP_DATA_DIR
 
 HISTORY_PATH = os.path.join(APP_DATA_DIR, "history.jsonl")
 

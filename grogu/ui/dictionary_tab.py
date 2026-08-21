@@ -23,8 +23,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from sotto.dictionary import Dictionary
-from sotto.ui.design_tokens import Color, Space, Type
+from grogu.dictionary import Dictionary
+from grogu.ui.design_tokens import Color, Space, Type
 
 
 class EntryDialog(QDialog):

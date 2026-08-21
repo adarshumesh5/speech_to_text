@@ -14,10 +14,10 @@ from PySide6.QtCore import QSize
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QMenu, QSystemTrayIcon
 
-from sotto import APP_NAME
-from sotto.dictation import STATE_LISTENING
-from sotto.injector import send_text
-from sotto.ui.theme import QSS
+from grogu import APP_NAME
+from grogu.dictation import STATE_LISTENING
+from grogu.injector import send_text
+from grogu.ui.theme import QSS
 
 ASSETS_DIR = os.path.join(os.path.dirname(__file__), "assets")
 
@@ -177,4 +177,4 @@ class Tray:
                 send_text(text)
             except Exception:
                 pass
-        threading.Thread(target=work, name="sotto-insert", daemon=True).start()
+        threading.Thread(target=work, name="grogu-insert", daemon=True).start()

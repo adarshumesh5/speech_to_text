@@ -1,11 +1,11 @@
-"""Tests for the inter-process command pipe (sotto.ipc)."""
+"""Tests for the inter-process command pipe (grogu.ipc)."""
 
 import sys
 import time
 
 import pytest
 
-from sotto.ipc import CommandServer, send_command
+from grogu.ipc import CommandServer, send_command
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="named pipes are Windows")

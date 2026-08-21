@@ -2,9 +2,9 @@
 
 Examples::
 
-    python -m sotto.transcribe note.wav
-    python -m sotto.transcribe note.wav --clean
-    python -m sotto.transcribe --record 4 --model base.en
+    python -m grogu.transcribe note.wav
+    python -m grogu.transcribe note.wav --clean
+    python -m grogu.transcribe --record 4 --model base.en
 
 Useful for validating the STT + cleanup pipeline, or for scripting.
 """
@@ -18,9 +18,9 @@ import wave
 
 import numpy as np
 
-from sotto.audio import resample_to_16k
-from sotto.cleaner import build_cleaner
-from sotto.stt import SttEngine
+from grogu.audio import resample_to_16k
+from grogu.cleaner import build_cleaner
+from grogu.stt import SttEngine
 
 
 def read_wav(path: str) -> tuple[np.ndarray, int]:
@@ -54,7 +54,7 @@ def main(argv: list[str] | None = None) -> int:
         ap.error("pass a WAV file or use --record")
 
     if args.record:
-        from sotto.audio import MicRecorder
+        from grogu.audio import MicRecorder
 
         rec = MicRecorder()
         print(f"Recording {args.record}s… speak now.", file=sys.stderr)

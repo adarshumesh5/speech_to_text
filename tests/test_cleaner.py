@@ -1,6 +1,6 @@
-"""Tests for sotto.cleaner."""
+"""Tests for grogu.cleaner."""
 
-from sotto.cleaner import PassthroughCleaner, RulesCleaner, build_cleaner
+from grogu.cleaner import PassthroughCleaner, RulesCleaner, build_cleaner
 
 
 def clean(text, tone=None):

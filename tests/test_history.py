@@ -1,6 +1,6 @@
-"""Tests for sotto.history."""
+"""Tests for grogu.history."""
 
-from sotto.history import HistoryStore
+from grogu.history import HistoryStore
 
 
 def test_append_and_load(tmp_path):
