@@ -235,6 +235,8 @@ class DictationService(QObject):
             return
         self._source = source
         self._target_hwnd = get_foreground_hwnd()
+        log.debug("_start_listening: captured target_hwnd=%s (source=%s)",
+                  self._target_hwnd, source)
         self._cancel.clear()
         try:
             self._recorder = MicRecorder(self.config.mic_device)
@@ -318,6 +320,8 @@ class DictationService(QObject):
             target = self._target_hwnd
             if is_own_window(target):
                 target = self._foreign_hwnd  # Grogu had focus — use last app
+            log.debug("send_text: target_hwnd=%s, own=%s, foreign=%s",
+                      target, self._target_hwnd, self._foreign_hwnd)
             ok = send_text(
                 final,
                 cancel_event=self._cancel,

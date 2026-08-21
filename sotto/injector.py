@@ -79,8 +79,8 @@ user32.SetForegroundWindow.restype = wintypes.BOOL
 user32.OpenClipboard.argtypes = [wintypes.HWND]
 user32.OpenClipboard.restype = wintypes.BOOL
 user32.EmptyClipboard.restype = wintypes.BOOL
-user32.SetClipboardData.argtypes = [wintypes.UINT, wintypes.HANDLE]
-user32.SetClipboardData.restype = wintypes.HANDLE
+user32.SetClipboardData.argtypes = [wintypes.UINT, ctypes.c_void_p]
+user32.SetClipboardData.restype = ctypes.c_void_p
 user32.CloseClipboard.restype = wintypes.BOOL
 kernel32.GetCurrentThreadId.restype = wintypes.DWORD
 kernel32.GlobalAlloc.argtypes = [wintypes.UINT, ctypes.c_size_t]
@@ -89,6 +89,21 @@ kernel32.GlobalLock.argtypes = [wintypes.HANDLE]
 kernel32.GlobalLock.restype = ctypes.c_void_p
 kernel32.GlobalUnlock.argtypes = [wintypes.HANDLE]
 kernel32.GlobalUnlock.restype = wintypes.BOOL
+
+# AllowSetForegroundWindow — tells Windows the next SetForegroundWindow call is OK
+user32.AllowSetForegroundWindow.argtypes = [wintypes.DWORD]
+user32.AllowSetForegroundWindow.restype = wintypes.BOOL
+
+# ForegroundLockTimeout — we temporarily set this to 0 so focus isn't blocked
+user32.SystemParametersInfoW.argtypes = [
+    wintypes.UINT, wintypes.UINT, ctypes.c_void_p, wintypes.UINT
+]
+user32.SystemParametersInfoW.restype = wintypes.BOOL
+
+SPI_GETFOREGROUNDLOCKTIMEOUT = 0x1000
+SPI_SETFOREGROUNDLOCKTIMEOUT = 0x1001
+SPIF_UPDATEINIFILE = 0x01
+SPIF_SENDCHANGE = 0x02
 
 _INPUT_SIZE = ctypes.sizeof(INPUT)
 
@@ -164,27 +179,79 @@ def is_own_window(hwnd: int) -> bool:
 def focus_window(hwnd: int) -> bool:
     """Best-effort: bring ``hwnd`` to the foreground so typing lands there.
 
-    Uses the AttachThreadInput trick, which lets us steal focus from our own
-    window even though SetForegroundWindow normally refuses. Returns True when
-    the window is (very likely) focused.
+    Uses the AttachThreadInput trick + AllowSetForegroundWindow + the
+    ForegroundLockTimeout hack. Returns True when the window is (very
+    likely) focused.
     """
     if not hwnd:
         return False
     try:
         cur_tid = kernel32.GetCurrentThreadId()
         target_tid = user32.GetWindowThreadProcessId(hwnd, None)
+
+        # AllowSetForegroundWindow — tell the OS our next SetForegroundWindow is legit
+        user32.AllowSetForegroundWindow(target_tid if target_tid else -1)
+
+        # Temporarily disable the foreground-lock timeout so Windows doesn't
+        # block us from stealing focus.
+        old_timeout = wintypes.UINT(0)
+        user32.SystemParametersInfoW(
+            SPI_GETFOREGROUNDLOCKTIMEOUT, 0,
+            ctypes.byref(old_timeout), 0
+        )
+        user32.SystemParametersInfoW(
+            SPI_SETFOREGROUNDLOCKTIMEOUT, 0,
+            ctypes.byref(wintypes.UINT(0)),
+            SPIF_UPDATEINIFILE | SPIF_SENDCHANGE
+        )
+
         attached = False
         if target_tid and target_tid != cur_tid:
             attached = bool(user32.AttachThreadInput(cur_tid, target_tid, True))
+
         ok = bool(user32.SetForegroundWindow(hwnd))
+
         if attached:
             user32.AttachThreadInput(cur_tid, target_tid, False)
+
+        # Restore the original foreground-lock timeout
+        user32.SystemParametersInfoW(
+            SPI_SETFOREGROUNDLOCKTIMEOUT, 0,
+            ctypes.byref(old_timeout),
+            SPIF_UPDATEINIFILE | SPIF_SENDCHANGE
+        )
+
         if not ok:
-            log.debug("SetForegroundWindow(%s) failed", hwnd)
+            log.warning("SetForegroundWindow(%s) failed (hwnd=%s, target_tid=%s)",
+                        hwnd, hwnd, target_tid)
         return ok
     except Exception:  # noqa: BLE001
-        log.debug("focus_window failed", exc_info=True)
+        log.warning("focus_window failed", exc_info=True)
         return False
+
+
+def _verify_foreground(hwnd: int) -> bool:
+    """Check that the window is actually the foreground window now."""
+    current = int(user32.GetForegroundWindow() or 0)
+    return current == hwnd
+
+
+def focus_window_with_retry(hwnd: int, retries: int = 3, delay: float = 0.08) -> bool:
+    """Try to focus the window with retries. Returns True on success."""
+    for attempt in range(retries):
+        if focus_window(hwnd):
+            time.sleep(delay)
+            if _verify_foreground(hwnd):
+                log.debug("focus_window succeeded on attempt %d for hwnd=%s", attempt + 1, hwnd)
+                return True
+            log.debug("focus_window: SetForegroundWindow returned True but "
+                      "hwnd not yet foreground (attempt %d)", attempt + 1)
+        else:
+            log.debug("focus_window: SetForegroundWindow returned False (attempt %d)", attempt + 1)
+        # exponential backoff: 0.08, 0.16, 0.32
+        time.sleep(delay * (2 ** attempt))
+    log.warning("focus_window: failed to focus hwnd=%s after %d attempts", hwnd, retries)
+    return False
 
 
 def _set_clipboard(text: str) -> bool:
@@ -206,7 +273,7 @@ def _set_clipboard(text: str) -> bool:
         finally:
             user32.CloseClipboard()
     except Exception:  # noqa: BLE001
-        log.debug("clipboard write failed", exc_info=True)
+        log.warning("clipboard write failed", exc_info=True)
         return False
 
 
@@ -248,8 +315,10 @@ def send_text(
     """
     if target_hwnd and not is_own_window(target_hwnd):
         if user32.GetForegroundWindow() != target_hwnd:
-            focus_window(target_hwnd)
-            time.sleep(0.05)
+            log.debug("send_text: focusing target hwnd=%s", target_hwnd)
+            focus_window_with_retry(target_hwnd, retries=3, delay=0.08)
+        # Additional settle time after focus (some apps need it)
+        time.sleep(0.05)
 
     if mode == "clipboard":
         if not text:
