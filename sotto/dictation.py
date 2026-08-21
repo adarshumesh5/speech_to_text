@@ -19,6 +19,7 @@ import time
 from PySide6.QtCore import QObject, QTimer, Signal
 
 from sotto.audio import MicRecorder
+from sotto.caret import CaretTracker
 from sotto.cleaner import build_cleaner
 from sotto.cues import play_start as _cue_start, play_stop as _cue_stop
 from sotto.dictionary import Dictionary
@@ -83,6 +84,7 @@ class DictationService(QObject):
         self.last_dictation: dict | None = None
         self._target_hwnd = 0   # window focused when dictation started
         self._foreign_hwnd = 0  # last external window (when Grogu had focus)
+        self._caret_tracker = CaretTracker(interval=0.05)
 
         self._level_timer = QTimer(self)
         self._level_timer.setInterval(60)
@@ -96,6 +98,7 @@ class DictationService(QObject):
         self._start_engine_load()
         self._register_hotkey(self.config.hotkey)
         self._register_mute_hotkey(self.config.mute_hotkey)
+        self._caret_tracker.start()
         self._poll_timer.start()
         self._level_timer.start()
         log.info("DictationService started")
@@ -103,6 +106,7 @@ class DictationService(QObject):
     def shutdown(self) -> None:
         self._poll_timer.stop()
         self._level_timer.stop()
+        self._caret_tracker.stop()
         self.cancel()
         self._unregister_hotkey()
         self._unregister_mute_hotkey()
@@ -244,14 +248,23 @@ class DictationService(QObject):
             return
         self._source = source
 
-        # Use the HWND captured at hotkey-fire time if available.
-        # This is the window the user was in when they pressed the hotkey.
-        if fg_hwnd and not is_own_window(fg_hwnd):
+        # Strategy: find the window with the blinking cursor (caret).
+        # Do an immediate scan of all windows — the cached value may be stale.
+        from sotto.caret import find_caret_window
+        caret_hwnd, caret_title = find_caret_window()
+
+        if caret_hwnd and not is_own_window(caret_hwnd):
+            # Found a caret window — use it as the target
+            self._target_hwnd = caret_hwnd
+            log.info("_start_listening: using caret window hwnd=%s title=%r",
+                     caret_hwnd, caret_title)
+        elif fg_hwnd and not is_own_window(fg_hwnd):
+            # No caret found, but hotkey captured an external window
             self._target_hwnd = fg_hwnd
             log.info("_start_listening: using hotkey-captured fg_hwnd=%s title=%r",
                      fg_hwnd, get_window_title(fg_hwnd))
         else:
-            # Fallback: capture current foreground window
+            # Fallback: foreground window
             fg_hwnd = get_foreground_hwnd()
             fg_title = get_window_title(fg_hwnd)
             own_fg = is_own_window(fg_hwnd)
@@ -260,12 +273,10 @@ class DictationService(QObject):
                      source, fg_hwnd, fg_title, own_fg)
 
             if own_fg:
-                # Grogu has focus — use the last known external window instead
                 log.info("_start_listening: Grogu is focused, using foreign_hwnd=%s",
                          self._foreign_hwnd)
                 self._target_hwnd = self._foreign_hwnd
             else:
-                # External app is focused — capture it as the target
                 self._target_hwnd = fg_hwnd
 
         log.info("_start_listening: final target_hwnd=%s title=%r",
