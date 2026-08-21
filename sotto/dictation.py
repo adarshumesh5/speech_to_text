@@ -11,6 +11,7 @@ States: idle → listening → (preparing) → transcribing → cleaning → typ
 
 from __future__ import annotations
 
+import ctypes
 import logging
 import queue
 import threading
@@ -19,12 +20,14 @@ import time
 from PySide6.QtCore import QObject, QTimer, Signal
 
 from sotto.audio import MicRecorder
+from sotto.caret import CaretTracker
 from sotto.cleaner import build_cleaner
 from sotto.cues import play_start as _cue_start, play_stop as _cue_stop
 from sotto.dictionary import Dictionary
 from sotto.hotkey import HotkeyListener, is_key_down
 from sotto.injector import (
     get_foreground_hwnd,
+    get_window_title,
     is_own_window,
     select_back,
     send_text,
@@ -34,6 +37,42 @@ from sotto.stt import SttEngine
 log = logging.getLogger(__name__)
 
 VK_ESCAPE = 0x1B
+
+# Window class names for console/terminal/host windows that should never
+# be dictation targets (they host Grogu but the user never wants to type into them).
+_CONSOLE_CLASSES = frozenset({
+    "ConsoleWindowClass",   # cmd.exe / conhost
+    "CiceroUIWndFrame",     # Windows speech UI
+    "CicTerminalWnd",       # Windows Terminal
+    "PuTTY",                # PuTTY
+    "VirtualConsoleClass",  # ConEmu / Cmder
+    "WnxBand",              # WSL
+})
+
+# Host application names that launch Grogu — never dictation targets.
+_HOST_TITLE_KEYWORDS = ("freebuff", "codebuff")
+
+def _is_console_or_host_window(hwnd: int) -> bool:
+    """True when *hwnd* is a console, terminal, or the host IDE that
+    launched Grogu — windows the user never wants to dictate into."""
+    if not hwnd:
+        return False
+    try:
+        u32 = ctypes.WinDLL("user32", use_last_error=True)
+        buf = ctypes.create_unicode_buffer(256)
+        u32.GetClassNameW(hwnd, buf, 256)
+        if buf.value in _CONSOLE_CLASSES:
+            return True
+        # Also check the title for known host apps (Electron-based)
+        length = u32.GetWindowTextLengthW(hwnd)
+        if length > 0:
+            title_buf = ctypes.create_unicode_buffer(length + 1)
+            u32.GetWindowTextW(hwnd, title_buf, length + 1)
+            title_lower = title_buf.value.lower()
+            return any(kw in title_lower for kw in _HOST_TITLE_KEYWORDS)
+    except Exception:  # noqa: BLE001
+        pass
+    return False
 
 STATE_IDLE = "idle"
 STATE_PREPARING = "preparing"
@@ -82,6 +121,7 @@ class DictationService(QObject):
         self.last_dictation: dict | None = None
         self._target_hwnd = 0   # window focused when dictation started
         self._foreign_hwnd = 0  # last external window (when Grogu had focus)
+        self._caret_tracker = CaretTracker(interval=0.05)
 
         self._level_timer = QTimer(self)
         self._level_timer.setInterval(60)
@@ -95,6 +135,7 @@ class DictationService(QObject):
         self._start_engine_load()
         self._register_hotkey(self.config.hotkey)
         self._register_mute_hotkey(self.config.mute_hotkey)
+        self._caret_tracker.start()
         self._poll_timer.start()
         self._level_timer.start()
         log.info("DictationService started")
@@ -102,6 +143,7 @@ class DictationService(QObject):
     def shutdown(self) -> None:
         self._poll_timer.stop()
         self._level_timer.stop()
+        self._caret_tracker.stop()
         self.cancel()
         self._unregister_hotkey()
         self._unregister_mute_hotkey()
@@ -136,8 +178,8 @@ class DictationService(QObject):
         try:
             self._listener = HotkeyListener(
                 spec,
-                on_down=lambda: self._hotkey_events.put(("down",)),
-                on_up=lambda: self._hotkey_events.put(("up",)),
+                on_down=lambda fg_hwnd=0: self._hotkey_events.put(("down", fg_hwnd)),
+                on_up=lambda: self._hotkey_events.put(("up", 0)),
                 on_error=self._on_hotkey_error,
                 on_registered=lambda s: self._set_error(None),
             )
@@ -172,9 +214,19 @@ class DictationService(QObject):
         try:
             while True:
                 ev = self._hotkey_events.get_nowait()
-                self._handle_hotkey(ev[0])
+                kind = ev[0]
+                fg_hwnd = ev[1] if len(ev) > 1 else 0
+                self._handle_hotkey(kind, fg_hwnd=fg_hwnd)
         except queue.Empty:
             pass
+        # Continuously track the last external window so foreign_hwnd is
+        # always fresh, even if ApplicationInactive never fires.
+        # Never overwrite with console/terminal windows (Freebuff, cmd, etc.).
+        cur_fg = get_foreground_hwnd()
+        if (cur_fg
+                and not is_own_window(cur_fg)
+                and not _is_console_or_host_window(cur_fg)):
+            self._foreign_hwnd = cur_fg
         try:
             while True:
                 ev = self._mute_events.get_nowait()
@@ -191,16 +243,16 @@ class DictationService(QObject):
         self._cancel.set()
         self.set_muted(not self._muted)
 
-    def _handle_hotkey(self, kind: str) -> None:
+    def _handle_hotkey(self, kind: str, fg_hwnd: int = 0) -> None:
         with self._lock:
             if kind == "down":
                 if self.config.mode == "toggle":
                     if self._state == STATE_LISTENING:
                         self._finish_listening()
                     elif self._state == STATE_IDLE:
-                        self._start_listening("hotkey")
+                        self._start_listening("hotkey", fg_hwnd=fg_hwnd)
                 elif self._state == STATE_IDLE:
-                    self._start_listening("hotkey")
+                    self._start_listening("hotkey", fg_hwnd=fg_hwnd)
             elif self._state == STATE_LISTENING:
                 self._finish_listening()
 
@@ -226,15 +278,68 @@ class DictationService(QObject):
 
         Called when the app loses focus; used to restore the target when the
         user starts dictation from Grogu's own REC button (which has focus).
+        Never stores console/terminal windows.
         """
-        if hwnd and not is_own_window(hwnd):
+        if (hwnd
+                and not is_own_window(hwnd)
+                and not _is_console_or_host_window(hwnd)):
+            log.debug("remember_foreign_hwnd: hwnd=%s title=%r", hwnd, get_window_title(hwnd))
             self._foreign_hwnd = hwnd
 
-    def _start_listening(self, source: str = "hotkey") -> None:
+    def _start_listening(self, source: str = "hotkey", fg_hwnd: int = 0) -> None:
         if self._state != STATE_IDLE or self._muted:
             return
         self._source = source
-        self._target_hwnd = get_foreground_hwnd()
+
+        # ---- Target window selection ----
+        # Priority:
+        #  1. Cached caret window — the last app where a caret was visible.
+        #     This survives focus changes (e.g. user clicks Notepad, switches
+        #     to Freebuff, presses hotkey). The live scan misses unfocused carets.
+        #  2. fg_hwnd captured at hotkey-press time (if it's an external app
+        #     the user was actually in).
+        #  3. _foreign_hwnd — last known external foreground window.
+        #  4. Current foreground — last resort.
+        target = 0
+
+        # 1. Cached caret tracker value (remembers Notepad even when unfocused)
+        cached_hwnd, cached_title = self._caret_tracker.get_target()
+        if cached_hwnd and not is_own_window(cached_hwnd):
+            target = cached_hwnd
+            log.info("_start_listening [1-caret]: hwnd=%s title=%r",
+                     cached_hwnd, cached_title)
+
+        # 2. Hotkey-captured foreground (valid only if it's a real app,
+        #    not a console/terminal that just happens to host us)
+        if not target and fg_hwnd and not is_own_window(fg_hwnd):
+            if not _is_console_or_host_window(fg_hwnd):
+                target = fg_hwnd
+                log.info("_start_listening [2-hotkey-fg]: hwnd=%s title=%r",
+                         fg_hwnd, get_window_title(fg_hwnd))
+
+        # 3. Foreign hwnd (last external window, set by poll timer)
+        if not target and self._foreign_hwnd and not is_own_window(self._foreign_hwnd):
+            if not _is_console_or_host_window(self._foreign_hwnd):
+                target = self._foreign_hwnd
+                log.info("_start_listening [3-foreign]: hwnd=%s title=%r",
+                         self._foreign_hwnd, get_window_title(self._foreign_hwnd))
+
+        # 4. Current foreground as last resort
+        if not target:
+            cur_fg = get_foreground_hwnd()
+            if cur_fg and not is_own_window(cur_fg) and not _is_console_or_host_window(cur_fg):
+                target = cur_fg
+                log.info("_start_listening [4-fg-fallback]: hwnd=%s title=%r",
+                         cur_fg, get_window_title(cur_fg))
+
+        if not target:
+            log.warning("_start_listening: no valid target found — "
+                        "text will go to clipboard only")
+
+        self._target_hwnd = target
+        log.info("_start_listening: FINAL target_hwnd=%s title=%r",
+                 self._target_hwnd, get_window_title(self._target_hwnd))
+
         self._cancel.clear()
         try:
             self._recorder = MicRecorder(self.config.mic_device)
@@ -315,9 +420,18 @@ class DictationService(QObject):
             final, fired = self.dictionary.apply_corrections(final)
             self._set_state(STATE_TYPING)
             self._cancel.clear()
+
             target = self._target_hwnd
+            log.info("_process: target_hwnd=%s target_title=%r",
+                     target, get_window_title(target))
+
             if is_own_window(target):
+                log.info("_process: target is own window, switching to foreign_hwnd=%s",
+                         self._foreign_hwnd)
                 target = self._foreign_hwnd  # Grogu had focus — use last app
+
+            log.info("_process: final target=%s title=%r", target, get_window_title(target))
+
             ok = send_text(
                 final,
                 cancel_event=self._cancel,

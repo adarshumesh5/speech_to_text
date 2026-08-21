@@ -135,10 +135,18 @@ Example corrections:
 - Another app may have grabbed it — change it in Settings
 - Use "Test hotkey" in Settings to verify registration
 
-**Text doesn't appear:**
+**Text doesn't appear at cursor:**
 - Target app may be running elevated (Grogu can't type into admin windows)
-- Try enabling "Clipboard fallback" in Settings
+- Try enabling "Clipboard fallback" in Settings (uses Ctrl+V instead of keystrokes)
 - Some apps block keyboard input — try pasting manually
+- If text appears in wrong window, ensure the target window was focused when you pressed the hotkey
+- Check Settings → "Test hotkey" to verify the hotkey is working
+
+**Text appears in wrong location:**
+- Grogu captures the foreground window when you press the hotkey
+- If you switch windows while holding the hotkey, text may land in the wrong place
+- Release the hotkey quickly after pressing it for best results
+- Enable "Clipboard fallback" for apps that don't accept synthetic keystrokes
 
 **Dictation is slow:**
 - First run downloads the model — be patient

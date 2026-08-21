@@ -133,12 +133,26 @@ class Tray:
     def _on_dictation_done(self, entry: dict) -> None:
         self._refresh_recent()
         self._act_undo.setEnabled(bool(entry.get("corrections")))
-        # confirm without opening the window — only when it's hidden
-        if (self.service.config.notify_on_dictation
-                and not self.window.isVisible()):
-            text = entry.get("text", "")
+        text = entry.get("text", "")
+        corrections = entry.get("corrections", [])
+
+        # Build a clear notification message
+        if self.service.config.insertion_mode == "clipboard":
+            # Clipboard mode: text is on clipboard, tell user to paste
+            snippet = text if len(text) <= 80 else text[:77] + "…"
+            msg = f"📋 {snippet}\n\nCtrl+V to paste"
+            if corrections:
+                msg += f" ({len(corrections)} correction{'s' if len(corrections) > 1 else ''} applied)"
+        else:
+            # Keystrokes mode: text was typed
             snippet = text if len(text) <= 90 else text[:87] + "…"
-            self.notify(f"{APP_NAME} — dictated", snippet)
+            msg = snippet
+            if corrections:
+                msg += f"\n\n({len(corrections)} correction{'s' if len(corrections) > 1 else ''} applied)"
+
+        # Show notification (when window is hidden or always)
+        if self.service.config.notify_on_dictation:
+            self.notify(f"{APP_NAME} — dictated", msg)
 
     # -- recent transcriptions ----------------------------------------------
     def _refresh_recent(self) -> None:

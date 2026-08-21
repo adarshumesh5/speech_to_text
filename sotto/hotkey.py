@@ -223,8 +223,18 @@ class HotkeyListener:
         if self._pressed:
             return
         self._pressed = True
+        # Capture the foreground window NOW — at the exact moment the hotkey fires.
+        # This is critical because by the time the GUI thread processes the event,
+        # the foreground window may have changed.
+        user32_local = ctypes.WinDLL("user32", use_last_error=True)
+        user32_local.GetForegroundWindow.restype = wintypes.HWND
+        fg_hwnd = int(user32_local.GetForegroundWindow() or 0)
+        log.debug("hotkey fired: fg_hwnd=%s", fg_hwnd)
         if self.on_down:
             try:
+                self.on_down(fg_hwnd=fg_hwnd)
+            except TypeError:
+                # Backward compat: old callback without fg_hwnd arg
                 self.on_down()
             except Exception:
                 log.exception("on_down callback failed")

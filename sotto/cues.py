@@ -51,8 +51,26 @@ _STOP = _sweep(0.30, 1400.0, 120.0, punch=0.85)
 def _play(data: bytes) -> None:
     try:
         import winsound
+        import threading
+        import tempfile
+        import os
+        import time
 
-        winsound.PlaySound(data, winsound.SND_ASYNC | winsound.SND_MEMORY)
+        def play_and_cleanup():
+            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as f:
+                f.write(data)
+                tmp = f.name
+            try:
+                winsound.PlaySound(tmp, winsound.SND_ASYNC)
+                # Wait a bit for the sound to finish, then cleanup
+                time.sleep(0.5)
+            finally:
+                try:
+                    os.unlink(tmp)
+                except OSError:
+                    pass
+
+        threading.Thread(target=play_and_cleanup, daemon=True).start()
     except Exception:  # noqa: BLE001 - audio is cosmetic
         log.debug("sound cue unavailable", exc_info=True)
 
