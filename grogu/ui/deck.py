@@ -24,6 +24,7 @@ from grogu.dictation import (
     STATE_CLEANING,
     STATE_IDLE,
     STATE_LISTENING,
+    STATE_PAUSED,
     STATE_PREPARING,
     STATE_TRANSCRIBING,
     STATE_TYPING,
@@ -37,6 +38,7 @@ LAMP_TEXT = {
     STATE_IDLE: "MAY THE FORCE BE WITH YOU",
     STATE_PREPARING: "CALIBRATING…",
     STATE_LISTENING: "THE FORCE IS WITH YOU",
+    STATE_PAUSED: "PAUSED — PRESS REC TO RESUME",
     STATE_TRANSCRIBING: "DECIPHERING…",
     STATE_CLEANING: "POLISHING…",
     STATE_TYPING: "TRANSMITTING…",
@@ -46,6 +48,7 @@ LAMP_COLOR = {
     STATE_IDLE: "ready",
     STATE_PREPARING: "busy",
     STATE_LISTENING: "rec",
+    STATE_PAUSED: "busy",
     STATE_TRANSCRIBING: "busy",
     STATE_CLEANING: "busy",
     STATE_TYPING: "rec",
@@ -102,6 +105,7 @@ class DeckPanel(QFrame):
 
         # --- wiring ---
         self.rec_button.clicked.connect(service.record)
+        self.pause_button.clicked.connect(service.toggle_pause)
         self.stop_button.clicked.connect(service.stop)
         service.state_changed.connect(self._on_state)
         service.mic_level.connect(self._on_level)
@@ -130,8 +134,10 @@ class DeckPanel(QFrame):
         row.setSpacing(Space.LG)
 
         self.rec_button = TransportButton("REC", primary=True)
+        self.pause_button = TransportButton("PAUSE", width=72)
         self.stop_button = TransportButton("STOP")
         row.addWidget(self.rec_button)
+        row.addWidget(self.pause_button)
         row.addWidget(self.stop_button)
 
         self.level = LevelMeter()
@@ -173,10 +179,14 @@ class DeckPanel(QFrame):
                 self.status_text.set_status(f"⚠ {err}", warn=True)
             elif state == STATE_IDLE:
                 self.status_text.set_status("")
-        self.rec_button.set_active(state == STATE_LISTENING)
+        self.rec_button.set_active(state in (STATE_LISTENING, STATE_PAUSED))
+        self.pause_button.set_active(state == STATE_PAUSED)
         if state == STATE_LISTENING:
             self._listen_started = time.time()
             self.saber.ignite()
+        elif state == STATE_PAUSED:
+            # keep the saber lit but freeze the meters
+            self.level.idle()
         elif state == STATE_IDLE:
             self.saber.retract()
             self.level.idle()

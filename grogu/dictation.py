@@ -22,12 +22,14 @@ from PySide6.QtCore import QObject, QTimer, Signal
 from grogu.audio import MicRecorder
 from grogu.caret import CaretTracker
 from grogu.cleaner import build_cleaner
+from grogu.commands import command_label, execute as run_commands, parse_commands
 from grogu.cues import play_start as _cue_start, play_stop as _cue_stop
 from grogu.dictionary import Dictionary
 from grogu.hotkey import HotkeyListener, is_key_down
 from grogu.injector import (
     get_foreground_hwnd,
     get_window_title,
+    hwnd_exe_name,
     is_own_window,
     select_back,
     send_text,
@@ -77,6 +79,7 @@ def _is_console_or_host_window(hwnd: int) -> bool:
 STATE_IDLE = "idle"
 STATE_PREPARING = "preparing"
 STATE_LISTENING = "listening"
+STATE_PAUSED = "paused"
 STATE_TRANSCRIBING = "transcribing"
 STATE_CLEANING = "cleaning"
 STATE_TYPING = "typing"
@@ -85,6 +88,7 @@ STATE_LABELS = {
     STATE_IDLE: "Ready",
     STATE_PREPARING: "Preparing engine…",
     STATE_LISTENING: "Listening…",
+    STATE_PAUSED: "Paused — press REC to resume…",
     STATE_TRANSCRIBING: "Transcribing…",
     STATE_CLEANING: "Polishing…",
     STATE_TYPING: "Typing…",
@@ -234,8 +238,8 @@ class DictationService(QObject):
                 self._handle_mute_hotkey()
         except queue.Empty:
             pass
-        # Escape cancels an active dictation
-        if self._state == STATE_LISTENING and is_key_down(VK_ESCAPE):
+        # Escape cancels an active dictation (also while paused)
+        if self._state in (STATE_LISTENING, STATE_PAUSED) and is_key_down(VK_ESCAPE):
             self.cancel()
 
     def _handle_mute_hotkey(self) -> None:
@@ -250,29 +254,77 @@ class DictationService(QObject):
                 if self.config.mode == "toggle":
                     if self._state == STATE_LISTENING:
                         self._finish_listening()
+                    elif self._state == STATE_PAUSED:
+                        self._finish_listening()
                     elif self._state == STATE_IDLE:
                         self._start_listening("hotkey", fg_hwnd=fg_hwnd)
                 elif self._state == STATE_IDLE:
                     self._start_listening("hotkey", fg_hwnd=fg_hwnd)
-            elif self._state == STATE_LISTENING:
+            elif self._state in (STATE_LISTENING, STATE_PAUSED):
                 self._finish_listening()
 
     # -- recording ----------------------------------------------------------
     def record(self, source: str = "button") -> None:
-        """Public: start dictation from the UI (REC button / tray)."""
+        """Public: start dictation from the UI (REC button / tray).
+
+        REC doubles as resume while paused.
+        """
         with self._lock:
             if self._state == STATE_IDLE:
                 self._start_listening(source)
             elif self._state == STATE_LISTENING:
                 self._finish_listening()
+            elif self._state == STATE_PAUSED:
+                self.resume()
 
     def stop(self) -> None:
         """Public: finish the current dictation, or cancel processing."""
         with self._lock:
-            if self._state == STATE_LISTENING:
+            if self._state in (STATE_LISTENING, STATE_PAUSED):
                 self._finish_listening()
             else:
                 self._cancel.set()
+
+    def pause(self) -> None:
+        """Pause recording mid-clip (mic keeps its buffer; no audio lost)."""
+        with self._lock:
+            if self._state != STATE_LISTENING:
+                return
+            rec = self._recorder
+            if rec is None:
+                return
+            try:
+                rec.pause()
+            except Exception as e:  # noqa: BLE001
+                log.exception("pause failed")
+                self.error.emit(str(e))
+                return
+            self._set_state(STATE_PAUSED)
+
+    def resume(self) -> None:
+        """Resume a paused recording."""
+        with self._lock:
+            if self._state != STATE_PAUSED:
+                return
+            rec = self._recorder
+            if rec is None:
+                self._set_state(STATE_IDLE)
+                return
+            try:
+                rec.resume()
+            except Exception as e:  # noqa: BLE001
+                log.exception("resume failed")
+                self.error.emit(str(e))
+                return
+            self._set_state(STATE_LISTENING)
+
+    def toggle_pause(self) -> None:
+        """UI convenience: pause when listening, resume when paused."""
+        with self._lock:
+            if self._state == STATE_LISTENING:
+                self.pause()
+            elif self._state == STATE_PAUSED:
+                self.resume()
 
     def remember_foreign_hwnd(self, hwnd: int) -> None:
         """Remember the last non-Grogu foreground window.
@@ -375,7 +427,7 @@ class DictationService(QObject):
 
     def cancel(self) -> None:
         """Cancel recording or abort typing."""
-        if self._state == STATE_LISTENING:
+        if self._state in (STATE_LISTENING, STATE_PAUSED):
             rec = self._recorder
             self._recorder = None
             if rec is not None:
@@ -392,6 +444,8 @@ class DictationService(QObject):
         with self._lock:
             if self._state == STATE_LISTENING:
                 self._finish_listening()
+            elif self._state == STATE_PAUSED:
+                self.resume()
             elif self._state == STATE_IDLE:
                 self._start_listening("tray")
 
@@ -417,6 +471,14 @@ class DictationService(QObject):
             if not final:
                 self._set_state(STATE_IDLE)
                 return
+
+            # Voice commands: a whole-utterance command chain is executed as
+            # editing keystrokes instead of being typed as text.
+            commands = parse_commands(final)
+            if commands:
+                self._run_commands(commands, raw)
+                return
+
             # guaranteed correction pass — biasing is only a nudge
             final, fired = self.dictionary.apply_corrections(final)
             if self.config.learn_from_corrections and fired:
@@ -424,21 +486,14 @@ class DictationService(QObject):
             self._set_state(STATE_TYPING)
             self._cancel.clear()
 
-            target = self._target_hwnd
-            log.info("_process: target_hwnd=%s target_title=%r",
-                     target, get_window_title(target))
-
-            if is_own_window(target):
-                log.info("_process: target is own window, switching to foreign_hwnd=%s",
-                         self._foreign_hwnd)
-                target = self._foreign_hwnd  # Grogu had focus — use last app
-
+            target = self._resolve_target()
             log.info("_process: final target=%s title=%r", target, get_window_title(target))
 
+            mode = self._resolve_insertion_mode(target)
             ok = send_text(
                 final,
                 cancel_event=self._cancel,
-                mode=self.config.insertion_mode,
+                mode=mode,
                 target_hwnd=target,
             )
             duration = len(audio) / 16000.0 if audio.size else 0.0
@@ -472,6 +527,54 @@ class DictationService(QObject):
             self.error.emit(str(e))
         finally:
             self._set_state(STATE_IDLE)
+
+    def _resolve_target(self) -> int:
+        """The window text should land in (never our own window)."""
+        target = self._target_hwnd
+        if is_own_window(target):
+            log.info("_resolve_target: target is own window, switching to foreign_hwnd=%s",
+                     self._foreign_hwnd)
+            target = self._foreign_hwnd  # Grogu had focus — use last app
+        return target
+
+    def _resolve_insertion_mode(self, target_hwnd: int) -> str:
+        """Per-app insertion-mode override, else the global setting.
+
+        Some apps only accept clipboard paste (terminals, some editors);
+        remembering the working mode per executable stops re-teaching it.
+        """
+        exe = hwnd_exe_name(target_hwnd)
+        if exe:
+            saved = self.config.app_modes.get(exe)
+            if saved:
+                log.info("per-app insertion mode: %s -> %s", exe, saved)
+                return saved
+        return self.config.insertion_mode
+
+    def _run_commands(self, commands: list[str], raw: str) -> None:
+        """Execute a voice-command chain and record it in history."""
+        self._set_state(STATE_TYPING)
+        self._cancel.clear()
+        ok = run_commands(commands, target_hwnd=self._resolve_target(),
+                          cancel_event=self._cancel)
+        if not ok:
+            self.toast.emit(
+                "Grogu — couldn't run command",
+                "The target app may be running as administrator.",
+            )
+        entry = {
+            "raw": raw,
+            "text": command_label(commands),
+            "commands": commands,
+            "kind": "command",
+            "corrections": [],
+            "duration": 0.0,
+            "source": self._source,
+            "ts": time.time(),
+            "inserted": ok,
+        }
+        self.last_dictation = entry
+        self.dictation_done.emit(entry)
 
     def _learn_fired_corrections(self, fired: list[dict]) -> None:
         """Auto-teach the dictionary every correction that just fired.

@@ -93,6 +93,16 @@ class HistoryRow(QWidget):
         grid.addWidget(copy, 0, 3, Qt.AlignmentFlag.AlignTop)
 
         row = 1
+        if entry.get("kind") == "command":
+            cmd = QLabel("CMD  " + entry.get("text", ""))
+            cmd.setWordWrap(True)
+            cmd.setFont(silk)
+            cmd.setStyleSheet(
+                f"color: {Color.LEVEL_AMBER}; background: transparent;"
+            )
+            grid.addWidget(cmd, row, 2, 1, 2, Qt.AlignmentFlag.AlignTop)
+            row += 1
+
         fired = entry.get("corrections") or []
         if fired:
             parts = []

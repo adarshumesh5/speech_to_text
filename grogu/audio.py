@@ -98,6 +98,7 @@ class MicRecorder:
         self._lock = threading.Lock()
         self._device_index: int | None = None
         self._sample_rate = SAMPLE_RATE
+        self._paused = False
 
     def start(self) -> None:
         self._device_index = resolve_input_device(self.device)
@@ -108,6 +109,7 @@ class MicRecorder:
         dev = sd.query_devices(self._device_index)
         self._sample_rate = int(dev["default_samplerate"])
         self._frames = []
+        self._paused = False
 
         def callback(indata, frames, time_info, status):
             if status:
@@ -130,15 +132,47 @@ class MicRecorder:
             log.exception("failed to open input stream")
             raise
 
+    def pause(self) -> None:
+        """Pause capture, keeping the accumulated audio so far.
+
+        ``sounddevice``'s ``stop()`` halts the callback but keeps the stream
+        open, so ``resume()`` can restart it without losing samples.
+        """
+        with self._lock:
+            if self._stream is None or self._paused:
+                return
+            try:
+                self._stream.stop()
+                self._paused = True
+            except Exception:
+                log.exception("pause failed")
+
+    def resume(self) -> None:
+        """Resume capture after :meth:`pause`."""
+        with self._lock:
+            if self._stream is None or not self._paused:
+                return
+            try:
+                self._stream.start()
+                self._paused = False
+            except Exception:
+                log.exception("resume failed")
+
+    @property
+    def paused(self) -> bool:
+        return self._paused
+
     def stop(self) -> np.ndarray:
         """Stop recording and return the clip as a 1-D float32 array."""
         if self._stream is not None:
             try:
-                self._stream.stop()
+                if not self._paused:
+                    self._stream.stop()
                 self._stream.close()
             except Exception:
                 log.exception("error closing stream")
             self._stream = None
+            self._paused = False
         with self._lock:
             if not self._frames:
                 return np.zeros(0, dtype=np.float32)
@@ -150,11 +184,13 @@ class MicRecorder:
         """Discard the current clip without returning it."""
         if self._stream is not None:
             try:
-                self._stream.stop()
+                if not self._paused:
+                    self._stream.stop()
                 self._stream.close()
             except Exception:
                 log.exception("error closing stream")
             self._stream = None
+            self._paused = False
         with self._lock:
             self._frames = []
 

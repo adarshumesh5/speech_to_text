@@ -79,6 +79,7 @@ class Config:
     start_with_windows: bool = False
     start_minimized: bool = False
     insertion_mode: str = "clipboard"  # "clipboard" | "keystrokes" | "smart"
+    app_modes: dict[str, str] = field(default_factory=dict)  # exe name -> insertion mode override
     log_level: str = "INFO"
     _extra: dict[str, Any] = field(default_factory=dict, repr=False)
 

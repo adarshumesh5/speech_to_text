@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import ctypes
 import logging
+import os
 import struct
 import threading
 import time
@@ -39,6 +40,14 @@ VK_SHIFT = 0x10
 VK_LEFT = 0x25
 VK_CONTROL = 0x11
 VK_V = 0x56
+VK_A = 0x41
+VK_Z = 0x5A
+VK_BACK = 0x08
+VK_DELETE = 0x2E
+VK_CAPITAL = 0x14
+
+PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+PROCESS_NAME_WIN32 = 0
 
 
 class KEYBDINPUT(ctypes.Structure):
@@ -69,6 +78,16 @@ user32.SendInput.argtypes = [wintypes.UINT, ctypes.POINTER(INPUT), ctypes.c_int]
 user32.SendInput.restype = wintypes.UINT
 user32.GetAsyncKeyState.argtypes = [ctypes.c_int]
 user32.GetAsyncKeyState.restype = wintypes.SHORT
+user32.GetKeyState.argtypes = [ctypes.c_int]
+user32.GetKeyState.restype = wintypes.SHORT
+kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+kernel32.OpenProcess.restype = wintypes.HANDLE
+kernel32.QueryFullProcessImageNameW.argtypes = [
+    wintypes.HANDLE, wintypes.DWORD, ctypes.c_wchar_p, ctypes.POINTER(wintypes.DWORD)
+]
+kernel32.QueryFullProcessImageNameW.restype = wintypes.BOOL
+kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+kernel32.CloseHandle.restype = wintypes.BOOL
 user32.GetForegroundWindow.restype = wintypes.HWND
 user32.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
 user32.GetWindowThreadProcessId.restype = wintypes.DWORD
@@ -447,6 +466,56 @@ def select_back(count: int, cancel_event: threading.Event | None = None) -> bool
         _send_one(_vk_input(VK_LEFT, True))
         _send_one(_vk_input(VK_SHIFT, True))
     return True
+
+
+def press_combo(modifiers: list[int] | None, key: int) -> None:
+    """Press a key chord: optional modifiers down, tap ``key``, release mods.
+
+    E.g. ``press_combo([VK_CONTROL], VK_Z)`` sends Ctrl+Z.
+    """
+    mods = list(modifiers or [])
+    for m in mods:
+        _send_one(_vk_input(m, False))
+    _send_pair(_vk_input(key, False), _vk_input(key, True))
+    for m in reversed(mods):
+        _send_one(_vk_input(m, True))
+
+
+def get_caps_lock() -> bool:
+    """True when Caps Lock is currently toggled on."""
+    return bool(user32.GetKeyState(VK_CAPITAL) & 1)
+
+
+def set_caps_lock(on: bool) -> None:
+    """Toggle Caps Lock so its state matches ``on`` (no-op when it already does)."""
+    if get_caps_lock() == on:
+        return
+    _send_pair(_vk_input(VK_CAPITAL, False), _vk_input(VK_CAPITAL, True))
+
+
+def hwnd_exe_name(hwnd: int) -> str | None:
+    """Lowercase executable filename owning ``hwnd`` (e.g. "notepad.exe").
+
+    Returns None when the process can't be inspected (elevated apps,
+    vanished windows). Used for per-app insertion-mode profiles.
+    """
+    if not hwnd:
+        return None
+    pid = hwnd_pid(hwnd)
+    if not pid:
+        return None
+    handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+    if not handle:
+        return None
+    try:
+        buf = ctypes.create_unicode_buffer(1024)
+        size = wintypes.DWORD(1024)
+        if kernel32.QueryFullProcessImageNameW(handle, PROCESS_NAME_WIN32,
+                                               buf, ctypes.byref(size)):
+            return os.path.basename(buf.value).lower()
+    finally:
+        kernel32.CloseHandle(handle)
+    return None
 
 
 def send_text(

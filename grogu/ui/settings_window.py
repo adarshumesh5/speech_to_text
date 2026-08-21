@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QKeySequenceEdit,
     QLabel,
+    QLineEdit,
     QMessageBox,
     QPushButton,
     QVBoxLayout,
@@ -161,6 +162,47 @@ class SettingsWindow(QDialog):
         form.addRow("", self.learn_check)
         layout.addWidget(group)
 
+        # --- per-app insertion modes ---
+        group = QGroupBox("Per-app insertion mode")
+        group.setToolTip(
+            "Some apps only accept clipboard paste. Override the insertion "
+            "mode for a specific app (by .exe name) so Grogu remembers it."
+        )
+        vbox = QVBoxLayout(group)
+        vbox.setSpacing(Space.SM)
+        self.app_mode_rows: list[tuple[str, QComboBox]] = []
+        self.app_modes_box = QVBoxLayout()
+        self.app_modes_box.setSpacing(Space.XS)
+        vbox.addLayout(self.app_modes_box)
+        for exe in sorted(self.config.app_modes):
+            self._add_app_mode_row(exe)
+        if not self.config.app_modes:
+            empty = QLabel("No overrides yet — add one below.")
+            empty.setStyleSheet(f"color: {Color.TEXT_FAINT}; font-size: 10px;")
+            self.app_modes_box.addWidget(empty)
+        add_row = QHBoxLayout()
+        add_row.setSpacing(Space.SM)
+        self.app_exe_edit = QLineEdit()
+        self.app_exe_edit.setPlaceholderText("app.exe")
+        add_row.addWidget(self.app_exe_edit, stretch=1)
+        self.app_mode_combo = QComboBox()
+        for key, label in INSERTION_MODES.items():
+            self.app_mode_combo.addItem(label, key)
+        add_row.addWidget(self.app_mode_combo)
+        btn_add = QPushButton("Add")
+        btn_add.setObjectName("Keycap")
+        btn_add.clicked.connect(self._add_app_mode)
+        add_row.addWidget(btn_add)
+        vbox.addLayout(add_row)
+        hint = QLabel(
+            "Apps without an entry use the Insert text setting above. "
+            "Example: notepad.exe → Keystrokes."
+        )
+        hint.setWordWrap(True)
+        hint.setStyleSheet(f"color: {Color.TEXT_FAINT}; font-size: 10px;")
+        vbox.addWidget(hint)
+        layout.addWidget(group)
+
         # --- engine ---
         group = QGroupBox("Speech engine")
         form = QFormLayout(group)
@@ -238,6 +280,69 @@ class SettingsWindow(QDialog):
         layout.addLayout(buttons)
 
     # -- actions ------------------------------------------------------------
+    def _add_app_mode_row(self, exe: str) -> None:
+        """Append one editable exe→mode row to the per-app list."""
+        row = QHBoxLayout()
+        row.setSpacing(Space.SM)
+        name = QLabel(exe)
+        name.setStyleSheet(f"color: {Color.TEXT}; font-family: {Type.FONT_MONO};")
+        row.addWidget(name, stretch=1)
+        combo = QComboBox()
+        for key, label in INSERTION_MODES.items():
+            combo.addItem(label, key)
+        idx = combo.findData(self.config.app_modes.get(exe, "clipboard"))
+        combo.setCurrentIndex(max(0, idx))
+        row.addWidget(combo)
+        btn_rm = QPushButton("Remove")
+        btn_rm.setObjectName("Keycap")
+        btn_rm.clicked.connect(
+            lambda _=False, e=exe, c=combo: self._remove_app_mode(e, c)
+        )
+        row.addWidget(btn_rm)
+        self.app_modes_box.addLayout(row)
+        self.app_mode_rows.append((exe, combo))
+
+    def _remove_app_mode(self, exe: str, combo: QComboBox) -> None:
+        self.config.app_modes.pop(exe, None)
+        self.config.save()
+        self._rebuild_app_modes()
+
+    def _add_app_mode(self) -> None:
+        exe = self.app_exe_edit.text().strip().lower()
+        if not exe or "." not in exe:
+            QMessageBox.warning(self, APP_NAME,
+                                "Enter the app's .exe name (e.g. notepad.exe).")
+            return
+        self.config.app_modes[exe] = self.app_mode_combo.currentData()
+        self.config.save()
+        self.app_exe_edit.clear()
+        self._rebuild_app_modes()
+
+    def _rebuild_app_modes(self) -> None:
+        """Rebuild the per-app list from the current config."""
+        while self.app_modes_box.count():
+            item = self.app_modes_box.takeAt(0)
+            if item.layout() is not None:
+                self._clear_layout(item.layout())
+            elif item.widget() is not None:
+                item.widget().deleteLater()
+        self.app_mode_rows = []
+        for exe in sorted(self.config.app_modes):
+            self._add_app_mode_row(exe)
+        if not self.config.app_modes:
+            empty = QLabel("No overrides yet — add one below.")
+            empty.setStyleSheet(f"color: {Color.TEXT_FAINT}; font-size: 10px;")
+            self.app_modes_box.addWidget(empty)
+
+    @staticmethod
+    def _clear_layout(layout) -> None:
+        while layout.count():
+            item = layout.takeAt(0)
+            if item.layout() is not None:
+                SettingsWindow._clear_layout(item.layout())
+            elif item.widget() is not None:
+                item.widget().deleteLater()
+
     def _open_model_manager(self) -> None:
         from grogu.ui.model_manager import ModelManagerDialog
 
@@ -304,6 +409,9 @@ class SettingsWindow(QDialog):
         self.config.vad_filter = self.vad_check.isChecked()
         self.config.sound_cues = self.cues_check.isChecked()
         self.config.learn_from_corrections = self.learn_check.isChecked()
+        # per-app insertion overrides: snapshot the current rows
+        self.config.app_modes = {exe: combo.currentData()
+                                 for exe, combo in self.app_mode_rows}
         self.config.model = self.model_combo.currentData()
         self.config.language = self.lang_combo.currentData()
         self.config.cleaner = self.cleaner_combo.currentData()
