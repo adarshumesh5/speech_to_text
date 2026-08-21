@@ -54,8 +54,9 @@ CLEANERS = {
 }
 
 INSERTION_MODES = {
-    "keystrokes": "Keystrokes (works in most apps)",
-    "clipboard": "Clipboard paste (fallback for stubborn apps)",
+    "clipboard": "Clipboard paste (most reliable)",
+    "keystrokes": "Keystrokes (Ctrl+Z undoable, but less reliable)",
+    "smart": "Smart (try keystrokes, fallback to clipboard)",
 }
 
 
@@ -76,7 +77,7 @@ class Config:
     notify_on_dictation: bool = True
     start_with_windows: bool = False
     start_minimized: bool = False
-    insertion_mode: str = "keystrokes"  # "keystrokes" | "clipboard"
+    insertion_mode: str = "clipboard"  # "clipboard" | "keystrokes" | "smart"
     log_level: str = "INFO"
     _extra: dict[str, Any] = field(default_factory=dict, repr=False)
 

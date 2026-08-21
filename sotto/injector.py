@@ -105,6 +105,12 @@ SPI_SETFOREGROUNDLOCKTIMEOUT = 0x1001
 SPIF_UPDATEINIFILE = 0x01
 SPIF_SENDCHANGE = 0x02
 
+# Window text retrieval
+user32.GetWindowTextW.argtypes = [wintypes.HWND, ctypes.c_wchar_p, wintypes.INT]
+user32.GetWindowTextW.restype = wintypes.INT
+user32.GetWindowTextLengthW.argtypes = [wintypes.HWND]
+user32.GetWindowTextLengthW.restype = wintypes.INT
+
 _INPUT_SIZE = ctypes.sizeof(INPUT)
 
 
@@ -160,6 +166,18 @@ def get_foreground_hwnd() -> int:
     return int(hwnd or 0)
 
 
+def get_window_title(hwnd: int) -> str:
+    """Get the title text of a window for debugging."""
+    if not hwnd:
+        return "<none>"
+    length = user32.GetWindowTextLengthW(hwnd)
+    if length == 0:
+        return "<untitled>"
+    buf = ctypes.create_unicode_buffer(length + 1)
+    user32.GetWindowTextW(hwnd, buf, length + 1)
+    return buf.value
+
+
 def hwnd_pid(hwnd: int) -> int:
     """PID owning ``hwnd`` (0 when invalid)."""
     if not hwnd:
@@ -188,6 +206,9 @@ def focus_window(hwnd: int) -> bool:
     try:
         cur_tid = kernel32.GetCurrentThreadId()
         target_tid = user32.GetWindowThreadProcessId(hwnd, None)
+
+        log.debug("focus_window: hwnd=%s title=%r target_tid=%d cur_tid=%d",
+                  hwnd, get_window_title(hwnd), target_tid, cur_tid)
 
         # AllowSetForegroundWindow — tell the OS our next SetForegroundWindow is legit
         user32.AllowSetForegroundWindow(target_tid if target_tid else -1)
@@ -222,8 +243,7 @@ def focus_window(hwnd: int) -> bool:
         )
 
         if not ok:
-            log.warning("SetForegroundWindow(%s) failed (hwnd=%s, target_tid=%s)",
-                        hwnd, hwnd, target_tid)
+            log.warning("SetForegroundWindow(%s) failed (title=%r)", hwnd, get_window_title(hwnd))
         return ok
     except Exception:  # noqa: BLE001
         log.warning("focus_window failed", exc_info=True)
@@ -242,15 +262,18 @@ def focus_window_with_retry(hwnd: int, retries: int = 3, delay: float = 0.08) ->
         if focus_window(hwnd):
             time.sleep(delay)
             if _verify_foreground(hwnd):
-                log.debug("focus_window succeeded on attempt %d for hwnd=%s", attempt + 1, hwnd)
+                log.debug("focus_window succeeded on attempt %d for hwnd=%s title=%r",
+                          attempt + 1, hwnd, get_window_title(hwnd))
                 return True
             log.debug("focus_window: SetForegroundWindow returned True but "
-                      "hwnd not yet foreground (attempt %d)", attempt + 1)
+                      "hwnd not yet foreground (attempt %d, current fg=%s)",
+                      attempt + 1, get_foreground_hwnd())
         else:
             log.debug("focus_window: SetForegroundWindow returned False (attempt %d)", attempt + 1)
         # exponential backoff: 0.08, 0.16, 0.32
         time.sleep(delay * (2 ** attempt))
-    log.warning("focus_window: failed to focus hwnd=%s after %d attempts", hwnd, retries)
+    log.warning("focus_window: failed to focus hwnd=%s title=%r after %d attempts",
+                hwnd, get_window_title(hwnd), retries)
     return False
 
 
@@ -313,21 +336,57 @@ def send_text(
     to the clipboard and pastes with Ctrl+V instead of typing keystrokes.
     Escape (or ``cancel_event``) aborts mid-way; whatever was typed stays.
     """
-    if target_hwnd and not is_own_window(target_hwnd):
-        if user32.GetForegroundWindow() != target_hwnd:
-            log.debug("send_text: focusing target hwnd=%s", target_hwnd)
-            focus_window_with_retry(target_hwnd, retries=3, delay=0.08)
+    # Diagnostic: log what we're about to do
+    cur_fg = get_foreground_hwnd()
+    cur_fg_title = get_window_title(cur_fg)
+    target_title = get_window_title(target_hwnd) if target_hwnd else "<none>"
+    own = is_own_window(target_hwnd) if target_hwnd else False
+
+    log.info("send_text START: target_hwnd=%s title=%r own=%s | current_fg=%s fg_title=%r | mode=%s",
+             target_hwnd, target_title, own, cur_fg, cur_fg_title, mode)
+    log.info("send_text: text=%r (len=%d)", text[:100], len(text))
+
+    if target_hwnd and not own:
+        if cur_fg != target_hwnd:
+            log.info("send_text: focusing target (current fg=%s, target=%s)", cur_fg, target_hwnd)
+            focused = focus_window_with_retry(target_hwnd, retries=3, delay=0.1)
+            log.info("send_text: focus result=%s, new_fg=%s", focused, get_foreground_hwnd())
+        else:
+            log.info("send_text: target already in foreground")
         # Additional settle time after focus (some apps need it)
         time.sleep(0.05)
+    elif own:
+        log.info("send_text: target is our own window — typing directly (foreign_hwnd may be needed)")
 
-    if mode == "clipboard":
+    if mode == "clipboard" or (mode == "smart" and target_hwnd and not own):
+        # Clipboard mode (or smart fallback): copy to clipboard and paste with Ctrl+V
+        log.info("send_text: using clipboard mode (mode=%s)", mode)
         if not text:
             return True
         if not _set_clipboard(text):
             return False
+        # For smart mode, try to focus first
+        if mode == "smart" and target_hwnd and not own:
+            focus_window_with_retry(target_hwnd, retries=2, delay=0.05)
+            time.sleep(0.03)
         _paste_from_clipboard()
         return True
 
+    if mode == "smart":
+        # Smart mode: try keystrokes, fallback to clipboard if focus fails
+        if target_hwnd and not own:
+            focused = focus_window_with_retry(target_hwnd, retries=2, delay=0.05)
+            if not focused:
+                log.info("send_text: smart mode — focus failed, falling back to clipboard")
+                if not text:
+                    return True
+                if not _set_clipboard(text):
+                    return False
+                _paste_from_clipboard()
+                return True
+            time.sleep(0.03)
+
+    log.info("send_text: typing %d chars via keystrokes", len(text))
     for ch in text:
         if _cancelled(cancel_event):
             return False
@@ -344,4 +403,9 @@ def send_text(
             on_char()
         if per_char_delay:
             time.sleep(per_char_delay)
+
+    # Final diagnostic
+    final_fg = get_foreground_hwnd()
+    log.info("send_text DONE: typed %d chars | final_fg=%s fg_title=%r",
+             len(text), final_fg, get_window_title(final_fg))
     return True

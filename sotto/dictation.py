@@ -25,6 +25,7 @@ from sotto.dictionary import Dictionary
 from sotto.hotkey import HotkeyListener, is_key_down
 from sotto.injector import (
     get_foreground_hwnd,
+    get_window_title,
     is_own_window,
     select_back,
     send_text,
@@ -136,8 +137,8 @@ class DictationService(QObject):
         try:
             self._listener = HotkeyListener(
                 spec,
-                on_down=lambda: self._hotkey_events.put(("down",)),
-                on_up=lambda: self._hotkey_events.put(("up",)),
+                on_down=lambda fg_hwnd=0: self._hotkey_events.put(("down", fg_hwnd)),
+                on_up=lambda: self._hotkey_events.put(("up", 0)),
                 on_error=self._on_hotkey_error,
                 on_registered=lambda s: self._set_error(None),
             )
@@ -172,9 +173,16 @@ class DictationService(QObject):
         try:
             while True:
                 ev = self._hotkey_events.get_nowait()
-                self._handle_hotkey(ev[0])
+                kind = ev[0]
+                fg_hwnd = ev[1] if len(ev) > 1 else 0
+                self._handle_hotkey(kind, fg_hwnd=fg_hwnd)
         except queue.Empty:
             pass
+        # Continuously track the last external window so foreign_hwnd is
+        # always fresh, even if ApplicationInactive never fires.
+        cur_fg = get_foreground_hwnd()
+        if cur_fg and not is_own_window(cur_fg):
+            self._foreign_hwnd = cur_fg
         try:
             while True:
                 ev = self._mute_events.get_nowait()
@@ -191,16 +199,16 @@ class DictationService(QObject):
         self._cancel.set()
         self.set_muted(not self._muted)
 
-    def _handle_hotkey(self, kind: str) -> None:
+    def _handle_hotkey(self, kind: str, fg_hwnd: int = 0) -> None:
         with self._lock:
             if kind == "down":
                 if self.config.mode == "toggle":
                     if self._state == STATE_LISTENING:
                         self._finish_listening()
                     elif self._state == STATE_IDLE:
-                        self._start_listening("hotkey")
+                        self._start_listening("hotkey", fg_hwnd=fg_hwnd)
                 elif self._state == STATE_IDLE:
-                    self._start_listening("hotkey")
+                    self._start_listening("hotkey", fg_hwnd=fg_hwnd)
             elif self._state == STATE_LISTENING:
                 self._finish_listening()
 
@@ -228,15 +236,41 @@ class DictationService(QObject):
         user starts dictation from Grogu's own REC button (which has focus).
         """
         if hwnd and not is_own_window(hwnd):
+            log.debug("remember_foreign_hwnd: hwnd=%s title=%r", hwnd, get_window_title(hwnd))
             self._foreign_hwnd = hwnd
 
-    def _start_listening(self, source: str = "hotkey") -> None:
+    def _start_listening(self, source: str = "hotkey", fg_hwnd: int = 0) -> None:
         if self._state != STATE_IDLE or self._muted:
             return
         self._source = source
-        self._target_hwnd = get_foreground_hwnd()
-        log.debug("_start_listening: captured target_hwnd=%s (source=%s)",
-                  self._target_hwnd, source)
+
+        # Use the HWND captured at hotkey-fire time if available.
+        # This is the window the user was in when they pressed the hotkey.
+        if fg_hwnd and not is_own_window(fg_hwnd):
+            self._target_hwnd = fg_hwnd
+            log.info("_start_listening: using hotkey-captured fg_hwnd=%s title=%r",
+                     fg_hwnd, get_window_title(fg_hwnd))
+        else:
+            # Fallback: capture current foreground window
+            fg_hwnd = get_foreground_hwnd()
+            fg_title = get_window_title(fg_hwnd)
+            own_fg = is_own_window(fg_hwnd)
+
+            log.info("_start_listening: source=%s, fg_hwnd=%s fg_title=%r is_own=%s",
+                     source, fg_hwnd, fg_title, own_fg)
+
+            if own_fg:
+                # Grogu has focus — use the last known external window instead
+                log.info("_start_listening: Grogu is focused, using foreign_hwnd=%s",
+                         self._foreign_hwnd)
+                self._target_hwnd = self._foreign_hwnd
+            else:
+                # External app is focused — capture it as the target
+                self._target_hwnd = fg_hwnd
+
+        log.info("_start_listening: final target_hwnd=%s title=%r",
+                 self._target_hwnd, get_window_title(self._target_hwnd))
+
         self._cancel.clear()
         try:
             self._recorder = MicRecorder(self.config.mic_device)
@@ -317,11 +351,18 @@ class DictationService(QObject):
             final, fired = self.dictionary.apply_corrections(final)
             self._set_state(STATE_TYPING)
             self._cancel.clear()
+
             target = self._target_hwnd
+            log.info("_process: target_hwnd=%s target_title=%r",
+                     target, get_window_title(target))
+
             if is_own_window(target):
+                log.info("_process: target is own window, switching to foreign_hwnd=%s",
+                         self._foreign_hwnd)
                 target = self._foreign_hwnd  # Grogu had focus — use last app
-            log.debug("send_text: target_hwnd=%s, own=%s, foreign=%s",
-                      target, self._target_hwnd, self._foreign_hwnd)
+
+            log.info("_process: final target=%s title=%r", target, get_window_title(target))
+
             ok = send_text(
                 final,
                 cancel_event=self._cancel,
