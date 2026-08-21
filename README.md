@@ -32,7 +32,7 @@ tray icon for status and dictation while you work in other apps.
 
 Download the latest installer from [Releases](https://github.com/adarshumesh5/speech_to_text/releases):
 
-1. Download `Grogu-0.2.0.msi` (or latest version)
+1. Download `Grogu-0.2.1.msi` (or latest version)
 2. Run the installer
 3. Pin Grogu to your Start menu or Taskbar
 4. Hold `Ctrl+Shift+Space` and speak
@@ -136,7 +136,7 @@ To build the MSI installer for distribution:
 
 This creates:
 - `dist\Grogu\Grogu.exe` — portable build
-- `dist\Grogu-0.2.0.msi` — installer (Windows 10/11)
+- `dist\Grogu-0.2.1.msi` — installer (Windows 10/11)
 
 ## Usage
 
