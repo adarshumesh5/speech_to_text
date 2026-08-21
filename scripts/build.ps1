@@ -64,7 +64,7 @@ if ($LASTEXITCODE -ne 0) { throw "candle (grogu.wxs) failed" }
 if ($LASTEXITCODE -ne 0) { throw "candle (grogu-files.wxs) failed" }
 
 Write-Host "==> light"
-$version = "0.2.1"
+$version = "0.3.0"
 $msi = Join-Path $root "dist\Grogu-$version.msi"
 & $light -ext WixUIExtension -cultures:en-us `
     -b $dist `

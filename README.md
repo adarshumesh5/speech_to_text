@@ -20,8 +20,10 @@ tray icon for status and dictation while you work in other apps.
 
 - **Lightsaber recording indicator** — ignites and glows when you speak
 - **Local transcription** — your voice never leaves your computer
-- **Smart cleanup** — removes filler words ("um", "like", "you know")
-- **Custom dictionary** — teach it names, jargon, and corrections
+- **Smart cleanup** — removes filler words ("um", "like", "you know") and turns spoken "comma", "question mark", "new line" into real punctuation
+- **Custom dictionary** — teach it names, jargon, and corrections (import/export as JSON)
+- **Learn from corrections** — auto-add every fired correction to the dictionary
+- **History export** — save transcriptions to text, Markdown, or CSV
 - **Global hotkey** — works in any app (Ctrl+Shift+Space)
 - **System tray** — dictate without opening the window
 - **Start with Windows** — optional auto-start
@@ -32,7 +34,7 @@ tray icon for status and dictation while you work in other apps.
 
 Download the latest installer from [Releases](https://github.com/adarshumesh5/speech_to_text/releases):
 
-1. Download `Grogu-0.2.1.msi` (or latest version)
+1. Download `Grogu-0.3.0.msi` (or latest version)
 2. Run the installer
 3. Pin Grogu to your Start menu or Taskbar
 4. Hold `Ctrl+Shift+Space` and speak
@@ -42,7 +44,19 @@ Download the latest installer from [Releases](https://github.com/adarshumesh5/sp
 
 ## Changelog
 
-### v0.2.1 — Pointer Fix (Latest)
+### v0.3.0 — Phase 1 Polish (Latest)
+
+> Merged via [PR #3](https://github.com/adarshumesh5/speech_to_text/pull/3) on Aug 21, 2026.
+
+Five user-visible improvements:
+
+- **Spoken punctuation** — say "comma", "question mark", "exclamation mark", "new line", "new paragraph", "dot dot dot" and Grogu types the real characters. Ambiguous words (period, colon, semicolon) only convert when they clearly act as punctuation, so "colon cancer" and "the period of history" are never mangled
+- **History export** — the Transcriptions tab can save the current list to **plain text, Markdown, or CSV**
+- **Dictionary import/export** — write a JSON backup and merge another dictionary in (case-insensitive, no overwrites)
+- **Learn from corrections** — Settings toggle that auto-adds every fired correction to the dictionary
+- **Failure toasts** — if insertion fails (elevated app, focus lock), Grogu copies the text to your clipboard and notifies you instead of failing silently; history rows are marked **NOT INSERTED**
+
+### v0.2.1 — Pointer Fix
 
 > Merged via [PR #1](https://github.com/adarshumesh5/speech_to_text/pull/1) on Aug 21, 2026.
 
@@ -136,7 +150,7 @@ To build the MSI installer for distribution:
 
 This creates:
 - `dist\Grogu\Grogu.exe` — portable build
-- `dist\Grogu-0.2.1.msi` — installer (Windows 10/11)
+- `dist\Grogu-0.3.0.msi` — installer (Windows 10/11)
 
 ## Usage
 

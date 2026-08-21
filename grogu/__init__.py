@@ -1,6 +1,6 @@
 """Grogu — push-to-talk dictation for Windows. The Force speaks. It writes."""
 
-__version__ = "0.2.1"
+__version__ = "0.3.0"
 
 APP_NAME = "Grogu"
 APP_TAGLINE = "The Force speaks. It writes."
