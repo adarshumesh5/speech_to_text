@@ -34,7 +34,7 @@ tray icon for status and dictation while you work in other apps.
 
 Download the latest installer from [Releases](https://github.com/adarshumesh5/speech_to_text/releases):
 
-1. Download `Grogu-0.3.0.msi` (or latest version)
+1. Download `Grogu-0.4.0.msi` (or latest version)
 2. Run the installer
 3. Pin Grogu to your Start menu or Taskbar
 4. Hold `Ctrl+Shift+Space` and speak
@@ -44,7 +44,18 @@ Download the latest installer from [Releases](https://github.com/adarshumesh5/sp
 
 ## Changelog
 
-### v0.3.0 — Phase 1 Polish (Latest)
+### v0.4.0 — Phase 2: Model Manager + Onboarding (Latest)
+
+First-run experience and model management:
+
+- **Onboarding wizard** — the first launch now walks you through setting
+  your hotkey, testing the microphone with a live level meter, and trying a
+  sample dictation before the app disappears into the tray
+- **Model manager** — Settings → "Manage Models…" shows every model with
+  its download size and status, lets you pre-download with live progress,
+  cancel, continue (resumes from cache), and delete cached models
+
+### v0.3.0 — Phase 1 Polish
 
 > Merged via [PR #3](https://github.com/adarshumesh5/speech_to_text/pull/3) on Aug 21, 2026.
 
@@ -150,7 +161,7 @@ To build the MSI installer for distribution:
 
 This creates:
 - `dist\Grogu\Grogu.exe` — portable build
-- `dist\Grogu-0.3.0.msi` — installer (Windows 10/11)
+- `dist\Grogu-0.4.0.msi` — installer (Windows 10/11)
 
 ## Usage
 

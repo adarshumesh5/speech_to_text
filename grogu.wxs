@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- WiX v3 product for Grogu. Files are harvested by heat into grogu-files.wxs. -->
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
-  <Product Id="*" Name="Grogu" Language="1033" Version="0.3.0"
+  <Product Id="*" Name="Grogu" Language="1033" Version="0.4.0"
            Manufacturer="Grogu"
            UpgradeCode="{B7A2C9E1-4F3D-4E8A-9C2B-1D5F7A3E8C40}">
     <Package InstallerVersion="200" Compressed="yes" InstallScope="perMachine"
