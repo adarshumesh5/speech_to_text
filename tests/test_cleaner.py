@@ -79,6 +79,53 @@ def test_mixed_dirty_sentence():
     assert clean(raw) == "The meeting is at noon."
 
 
+# --- spoken punctuation -----------------------------------------------------
+
+def test_spoken_comma():
+    assert clean("hello comma how are you") == "Hello, how are you."
+
+
+def test_spoken_question_mark():
+    assert clean("are you free question mark") == "Are you free?"
+
+
+def test_spoken_exclamation():
+    assert clean("that was great exclamation mark") == "That was great!"
+
+
+def test_spoken_new_line():
+    assert clean("first line new line second line") == "First line.\nSecond line."
+
+
+def test_spoken_new_paragraph():
+    assert clean("first line new paragraph second line") == (
+        "First line.\n\nSecond line."
+    )
+
+
+def test_spoken_period_at_end():
+    assert clean("we should ship period") == "We should ship."
+
+
+def test_spoken_colon_before_new_line():
+    # colon acts as punctuation when a punctuation command follows
+    assert clean("define fn colon new line return x") == "Define fn:\nReturn x."
+
+
+def test_spoken_period_not_corrupted_mid_sentence():
+    # "period" / "colon" as real words must survive
+    assert clean("the period of history matters") == "The period of history matters."
+    assert clean("colon cancer is serious") == "Colon cancer is serious."
+
+
+def test_spoken_punctuation_with_fillers():
+    assert clean("um so hello comma how are you question mark") == "Hello, how are you?"
+
+
+def test_spoken_ellipsis():
+    assert clean("it goes dot dot dot") == "It goes…"
+
+
 # --- passthrough -----------------------------------------------------------
 
 def test_passthrough_returns_raw():

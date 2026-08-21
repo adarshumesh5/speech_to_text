@@ -152,6 +152,13 @@ class SettingsWindow(QDialog):
             "Lightsaber sound on record start / stop")
         self.cues_check.setChecked(self.config.sound_cues)
         form.addRow("", self.cues_check)
+
+        self.learn_check = QCheckBox(
+            "Learn from corrections — auto-add every fired correction to "
+            "the dictionary so Grogu keeps catching it"
+        )
+        self.learn_check.setChecked(self.config.learn_from_corrections)
+        form.addRow("", self.learn_check)
         layout.addWidget(group)
 
         # --- engine ---
@@ -280,6 +287,7 @@ class SettingsWindow(QDialog):
         self.config.mic_device = self.mic_combo.currentData()
         self.config.vad_filter = self.vad_check.isChecked()
         self.config.sound_cues = self.cues_check.isChecked()
+        self.config.learn_from_corrections = self.learn_check.isChecked()
         self.config.model = self.model_combo.currentData()
         self.config.language = self.lang_combo.currentData()
         self.config.cleaner = self.cleaner_combo.currentData()

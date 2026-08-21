@@ -116,12 +116,64 @@ class Dictionary:
 
     def save(self) -> None:
         os.makedirs(os.path.dirname(self.path), exist_ok=True)
-        data = {
+        with open(self.path, "w", encoding="utf-8") as f:
+            json.dump(self.to_dict(), f, indent=2, ensure_ascii=False)
+
+    def to_dict(self) -> dict[str, Any]:
+        """The full dictionary as a plain dict (same shape as the JSON file)."""
+        return {
             "words": [asdict(w) for w in self.words],
             "corrections": [asdict(c) for c in self.corrections],
         }
-        with open(self.path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
+
+    # -- import / export ----------------------------------------------------
+    def export_to(self, path: str) -> None:
+        """Write the dictionary to ``path`` as plain JSON (same format as the
+        live file, so a backup can be restored with :meth:`import_from`)."""
+        os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(self.to_dict(), f, indent=2, ensure_ascii=False)
+
+    def import_from(self, path: str) -> dict[str, int]:
+        """Merge a dictionary JSON file into this one (no overwrites).
+
+        Words are added when the same text isn't already present; corrections
+        are added when the same heard→write pair isn't already present. Both
+        comparisons are case-insensitive. Returns counts added as
+        {"words": n, "corrections": m}.
+        """
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        added_words = 0
+        for item in data.get("words", []):
+            if not isinstance(item, dict) or not item.get("text"):
+                continue
+            text = str(item["text"]).strip()
+            if not text:
+                continue
+            if any(w.text.lower() == text.lower() for w in self.words):
+                continue
+            self.words.append(WordEntry(text=text,
+                                        created=float(item.get("created", time.time()))))
+            added_words += 1
+        added_corr = 0
+        for item in data.get("corrections", []):
+            if not isinstance(item, dict) or not item.get("heard") or not item.get("write"):
+                continue
+            heard, write = str(item["heard"]).strip(), str(item["write"]).strip()
+            if not heard or not write:
+                continue
+            if any(c.heard.lower() == heard.lower() and c.write.lower() == write.lower()
+                   for c in self.corrections):
+                continue
+            self.corrections.append(CorrectionEntry(
+                heard=heard, write=write,
+                created=float(item.get("created", time.time()))))
+            added_corr += 1
+        self._rebuild_patterns()
+        if added_words or added_corr:
+            self.save()
+        return {"words": added_words, "corrections": added_corr}
 
     # -- CRUD ---------------------------------------------------------------
     def add_word(self, text: str) -> WordEntry:
