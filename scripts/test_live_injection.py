@@ -127,8 +127,8 @@ def caret_pos(notepad: int) -> tuple[int, int]:
 
 
 def main() -> int:
-    from sotto.injector import focus_window, get_foreground_hwnd, send_text
-    from sotto.caret import CaretTracker
+    from grogu.injector import focus_window, get_foreground_hwnd, send_text
+    from grogu.caret import CaretTracker
 
     print("=" * 64)
     print("LIVE INJECTION TEST — run from Freebuff terminal")

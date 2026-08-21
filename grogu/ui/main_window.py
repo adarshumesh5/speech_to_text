@@ -21,13 +21,13 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from sotto import APP_NAME, APP_TAGLINE, __version__
-from sotto.injector import get_foreground_hwnd
-from sotto.ui.deck import DeckPanel
-from sotto.ui.design_tokens import Color, Space
-from sotto.ui.dictionary_tab import DictionaryTab
-from sotto.ui.history_tab import HistoryTab
-from sotto.ui.theme import QSS
+from grogu import APP_NAME, APP_TAGLINE, __version__
+from grogu.injector import get_foreground_hwnd
+from grogu.ui.deck import DeckPanel
+from grogu.ui.design_tokens import Color, Space
+from grogu.ui.dictionary_tab import DictionaryTab
+from grogu.ui.history_tab import HistoryTab
+from grogu.ui.theme import QSS
 
 DWMWA_USE_IMMERSIVE_DARK_MODE = 20
 
@@ -136,7 +136,7 @@ class MainWindow(QMainWindow):
         self.history_tab.refresh()
 
     def on_service_error(self, message: str) -> None:
-        from sotto.ui.tray import Tray
+        from grogu.ui.tray import Tray
 
         tray = getattr(self, "_tray", None)
         if tray is not None:
@@ -181,7 +181,7 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event) -> None:
         # closing the window hides to tray; Quit (menu/tray) exits for real
-        from sotto import APP_NAME as _  # noqa: F401
+        from grogu import APP_NAME as _  # noqa: F401
 
         self.hide()
         event.ignore()

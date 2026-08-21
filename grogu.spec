@@ -1,7 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 """PyInstaller spec for Grogu (onedir, no console).
 
-Build:  python -m PyInstaller --noconfirm sotto.spec
+Build:  python -m PyInstaller --noconfirm grogu.spec
 """
 
 import glob
@@ -18,9 +18,9 @@ hiddenimports = ["faster_whisper", "onnxruntime", "av", "sounddevice",
                  "huggingface_hub", "nvidia.cublas"]
 
 # branding assets (app icon, tray PNGs, logo)
-for f in glob.glob(os.path.join("sotto", "ui", "assets", "*")):
+for f in glob.glob(os.path.join("grogu", "ui", "assets", "*")):
     if os.path.isfile(f):
-        datas.append((f, "sotto/ui/assets"))
+        datas.append((f, "grogu/ui/assets"))
 
 # NVIDIA cuBLAS — ctranslate2's CUDA backend (cublas64_12.dll etc.)
 for sp in site.getsitepackages():
@@ -39,11 +39,11 @@ datas += collect_dynamic_libs("av")
 # faster-whisper ships its Silero VAD model + tokenizer assets as package data
 datas += collect_data_files("faster_whisper")
 
-# jump-list helper (PowerShell/WPF) used by sotto.jumplist
+# jump-list helper (PowerShell/WPF) used by grogu.jumplist
 datas.append(("scripts/jumplist.ps1", "."))
 
 a = Analysis(
-    ["sotto/__main__.py"],
+    ["grogu/__main__.py"],
     pathex=["."],
     binaries=binaries,
     datas=datas,
@@ -70,7 +70,7 @@ exe = EXE(
     strip=False,
     upx=True,
     console=False,
-    icon="sotto/ui/assets/app.ico",
+    icon="grogu/ui/assets/app.ico",
     disable_windowed_traceback=False,
 )
 

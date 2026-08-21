@@ -9,7 +9,7 @@ values.
 import ctypes
 import os
 
-from sotto.ui.design_tokens import Border, Color, Radius, Type
+from grogu.ui.design_tokens import Border, Color, Radius, Type
 
 
 def is_high_contrast() -> bool:

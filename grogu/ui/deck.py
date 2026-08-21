@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from sotto.dictation import (
+from grogu.dictation import (
     STATE_CLEANING,
     STATE_IDLE,
     STATE_LISTENING,
@@ -28,10 +28,10 @@ from sotto.dictation import (
     STATE_TRANSCRIBING,
     STATE_TYPING,
 )
-from sotto.ui.design_tokens import Color, Space, Type
-from sotto.ui.lightsaber import Lightsaber
-from sotto.ui.transport import CounterLabel, StatusLamp, TransportButton
-from sotto.ui.vu_meter import LevelMeter
+from grogu.ui.design_tokens import Color, Space, Type
+from grogu.ui.lightsaber import Lightsaber
+from grogu.ui.transport import CounterLabel, StatusLamp, TransportButton
+from grogu.ui.vu_meter import LevelMeter
 
 LAMP_TEXT = {
     STATE_IDLE: "MAY THE FORCE BE WITH YOU",

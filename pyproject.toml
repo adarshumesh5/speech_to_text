@@ -24,10 +24,10 @@ dev = [
 ]
 
 [project.scripts]
-sotto = "sotto.app:main"
+grogu = "grogu.app:main"
 
 [tool.setuptools.packages.find]
-include = ["sotto*"]
+include = ["grogu*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

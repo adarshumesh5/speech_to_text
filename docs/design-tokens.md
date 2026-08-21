@@ -10,7 +10,7 @@ brushed aluminum, no silkscreen-on-paper, no tape windows, no red record
 light. Also no neon/synthwave gradients, no purple-pink, no glassmorphism.
 One blade, one glow.
 
-The canonical tokens live in `sotto/ui/design_tokens.py`. This document is the
+The canonical tokens live in `grogu/ui/design_tokens.py`. This document is the
 spec; the code is the single source of truth. **If it isn't a token, it
 doesn't exist** — components never carry one-off values.
 
@@ -127,7 +127,7 @@ are the only breathing animations; everything else snaps.
   `WELL_BORDER`, `Shadow.WELL` inset. Cursor = block/beam (mono).
 - **Lightsaber** — custom-painted hilt + three-layer blade (wide soft halo →
   mid glow → white-hot core). Ignites on record, pulses with mic level,
-  retracts on stop. Drawn at 60fps in `sotto/ui/lightsaber.py`.
+  retracts on stop. Drawn at 60fps in `grogu/ui/lightsaber.py`.
 - **Level meter** — needle VU, green → amber scale, cyan frame.
 - **Selection** — cyan face (`SELECT_BG`) + ink text; focus = cyan outline.
 

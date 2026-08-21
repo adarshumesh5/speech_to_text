@@ -1,8 +1,8 @@
-"""Tests for sotto.hotkey.parse_hotkey (pure parsing, no window)."""
+"""Tests for grogu.hotkey.parse_hotkey (pure parsing, no window)."""
 
 import pytest
 
-from sotto.hotkey import (
+from grogu.hotkey import (
     MOD_ALT,
     MOD_CONTROL,
     MOD_SHIFT,
@@ -74,7 +74,7 @@ import threading
 import time
 from ctypes import wintypes
 
-from sotto.hotkey import HotkeyListener
+from grogu.hotkey import HotkeyListener
 
 KEYEVENTF_KEYUP = 0x0002
 VK_CONTROL = 0x11

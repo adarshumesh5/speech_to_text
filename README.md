@@ -68,7 +68,7 @@ python -m venv .venv
 .venv\Scripts\activate
 pip install -e ".[dev]"
 python scripts\make_assets.py
-python -m sotto
+python -m grogu
 ```
 
 Or download the latest MSI from [Releases](https://github.com/adarshumesh5/speech_to_text/releases) and run it.
@@ -118,7 +118,7 @@ Or download the latest MSI from [Releases](https://github.com/adarshumesh5/speec
 
 5. **Run Grogu:**
    ```powershell
-   python -m sotto
+   python -m grogu
    ```
 
 6. **Run tests (optional):**
@@ -210,13 +210,13 @@ Hotkey (Win32 RegisterHotKey) → Mic capture (WASAPI)
 
 | Module | Purpose |
 |--------|---------|
-| `sotto/hotkey.py` | Global hotkey registration |
-| `sotto/audio.py` | Microphone capture |
-| `sotto/stt.py` | Speech-to-text (Whisper) |
-| `sotto/cleaner.py` | Filler word removal |
-| `sotto/dictionary.py` | Custom words & corrections |
-| `sotto/injector.py` | Text typing at cursor |
-| `sotto/ui/` | Lightsaber UI, settings, history |
+| `grogu/hotkey.py` | Global hotkey registration |
+| `grogu/audio.py` | Microphone capture |
+| `grogu/stt.py` | Speech-to-text (Whisper) |
+| `grogu/cleaner.py` | Filler word removal |
+| `grogu/dictionary.py` | Custom words & corrections |
+| `grogu/injector.py` | Text typing at cursor |
+| `grogu/ui/` | Lightsaber UI, settings, history |
 
 ## Testing
 

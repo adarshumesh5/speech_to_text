@@ -144,7 +144,7 @@ class CaretTracker:
             return
         self._stop.clear()
         self._thread = threading.Thread(
-            target=self._run, name="sotto-caret", daemon=True
+            target=self._run, name="grogu-caret", daemon=True
         )
         self._thread.start()
         # Do an immediate scan so we have a target right away

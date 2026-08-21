@@ -99,8 +99,8 @@ def read_edit_text(hwnd: int) -> str:
 
 
 def main() -> int:
-    from sotto.injector import focus_window, get_foreground_hwnd, send_text
-    from sotto.caret import CaretTracker
+    from grogu.injector import focus_window, get_foreground_hwnd, send_text
+    from grogu.caret import CaretTracker
 
     print("=" * 64)
     print("E2E SCENARIO TEST — Freebuff foreground, dictation to Notepad")
