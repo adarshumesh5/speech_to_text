@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+.eggs/
+sdist/
+wheels/
+*.so
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.coverage.*
+
+# Build artifacts
+build/
+dist/
+*.wixpdb
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Tools (downloaded binaries)
+tools/wix/
+tools/*.zip
+
+# Logs
+*.log
+
+# Models cache (too large for git)
+.cache/
+
+# PyInstaller specific - DO NOT IGNORE .spec files (they are needed for builds)
+# Uncomment the next line if you really want to ignore spec files:
+# *.spec

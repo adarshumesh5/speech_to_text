@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- WiX v3 product for Grogu. Files are harvested by heat into grogu-files.wxs. -->
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id="*" Name="Grogu" Language="1033" Version="0.2.0"
+           Manufacturer="Grogu"
+           UpgradeCode="{B7A2C9E1-4F3D-4E8A-9C2B-1D5F7A3E8C40}">
+    <Package InstallerVersion="200" Compressed="yes" InstallScope="perMachine"
+             Description="Grogu — push-to-talk dictation. The Force speaks. It writes." />
+    <MajorUpgrade DowngradeErrorMessage="A newer version of Grogu is already installed." />
+    <Media Id="1" Cabinet="grogu.cab" EmbedCab="yes" />
+
+    <Icon Id="GroguIcon" SourceFile="sotto/ui/assets/app.ico" />
+    <Property Id="ARPPRODUCTICON" Value="GroguIcon" />
+    <Property Id="ARPCOMMENTS" Value="The Force speaks. It writes." />
+
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFiles64Folder">
+        <Directory Id="INSTALLDIR" Name="Grogu" />
+      </Directory>
+      <Directory Id="ProgramMenuFolder">
+        <Directory Id="GroguProgramMenu" Name="Grogu" />
+      </Directory>
+    </Directory>
+
+    <Feature Id="MainFeature" Title="Grogu" Level="1">
+      <ComponentGroupRef Id="GroguComponents" />
+      <ComponentRef Id="GroguShortcut" />
+    </Feature>
+
+    <!-- Start-menu shortcut (advertised → pinnable to Start and Taskbar) -->
+    <DirectoryRef Id="GroguProgramMenu">
+      <Component Id="GroguShortcut" Guid="{9F3E4B2A-7C1D-4E8F-B6A0-2D4C8E1F9A33}">
+        <Shortcut Id="GroguStartMenuShortcut" Name="Grogu"
+                  Target="[INSTALLDIR]Grogu.exe" WorkingDirectory="INSTALLDIR" />
+        <RemoveFolder Id="GroguProgramMenuRemove" On="uninstall" />
+        <RegistryValue Root="HKCU" Key="Software\Grogu" Name="installed"
+                       Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+  </Product>
+</Wix>

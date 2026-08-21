@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "grogu"
+version = "0.2.0"
+description = "Grogu — push-to-talk dictation for Windows. Speak. The Force types."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = [
+    "PySide6>=6.9",
+    "faster-whisper>=1.1",
+    "sounddevice>=0.4.6",
+    "numpy>=1.26",
+    "nvidia-cublas-cu12; sys_platform == 'win32'",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "Pillow>=10",
+]
+
+[project.scripts]
+sotto = "sotto.app:main"
+
+[tool.setuptools.packages.find]
+include = ["sotto*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
