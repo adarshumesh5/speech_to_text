@@ -172,6 +172,81 @@ def test_word_entry_validation(tmp_path):
     d.add_correction("Claude Code", "Claude Code")
 
 
+# --- import / export -------------------------------------------------------
+
+def test_export_to(tmp_path):
+    d = make_dict(tmp_path, words=["Anthropic"],
+                  corrections=[("cloud code", "Claude Code")])
+    target = tmp_path / "backup.json"
+    d.export_to(str(target))
+    data = target.read_text(encoding="utf-8")
+    assert "Anthropic" in data
+    assert "Claude Code" in data
+    # reload from the backup produces the same dictionary
+    d2 = Dictionary(str(target))
+    assert [w.text for w in d2.words] == ["Anthropic"]
+    assert d2.corrections[0].heard == "cloud code"
+
+
+def test_import_merges(tmp_path):
+    src = tmp_path / "other.json"
+    src.write_text(
+        '{"words": [{"text": "Vercel", "created": 1.0}, '
+        '{"text": "Anthropic", "created": 1.0}], '
+        '"corrections": [{"heard": "vercel", "write": "Vercel", '
+        '"created": 1.0}]}',
+        encoding="utf-8",
+    )
+    d = make_dict(tmp_path, words=["Anthropic"],
+                  corrections=[("cloud code", "Claude Code")])
+    counts = d.import_from(str(src))
+    # only the genuinely new word + correction are added (case-insensitive)
+    assert counts == {"words": 1, "corrections": 1}
+    assert [w.text for w in d.words] == ["Anthropic", "Vercel"]
+    assert len(d.corrections) == 2
+
+
+def test_import_no_duplicates(tmp_path):
+    src = tmp_path / "same.json"
+    src.write_text(
+        '{"words": [{"text": "Anthropic"}], '
+        '"corrections": [{"heard": "cloud code", "write": "Claude Code"}]}',
+        encoding="utf-8",
+    )
+    d = make_dict(tmp_path, words=["Anthropic"],
+                  corrections=[("cloud code", "Claude Code")])
+    counts = d.import_from(str(src))
+    assert counts == {"words": 0, "corrections": 0}
+    assert len(d.words) == 1 and len(d.corrections) == 1
+
+
+def test_import_case_insensitive_dedupe(tmp_path):
+    src = tmp_path / "cased.json"
+    src.write_text(
+        '{"words": [{"text": "anthropic"}], '
+        '"corrections": [{"heard": "CLOUD CODE", "write": "claude code"}]}',
+        encoding="utf-8",
+    )
+    d = make_dict(tmp_path, words=["Anthropic"],
+                  corrections=[("cloud code", "Claude Code")])
+    counts = d.import_from(str(src))
+    assert counts == {"words": 0, "corrections": 0}
+
+
+def test_import_restores_patterns(tmp_path):
+    src = tmp_path / "glued.json"
+    src.write_text(
+        '{"words": [], '
+        '"corrections": [{"heard": "cloud code", "write": "Claude Code"}]}',
+        encoding="utf-8",
+    )
+    d = make_dict(tmp_path)
+    d.import_from(str(src))
+    out, fired = d.apply_corrections("I use CloudCode daily")
+    assert out == "I use Claude Code daily"
+    assert fired
+
+
 # --- undo support ----------------------------------------------------------
 
 def test_compute_undo_basic(tmp_path):

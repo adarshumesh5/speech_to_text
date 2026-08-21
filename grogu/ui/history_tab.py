@@ -1,21 +1,26 @@
 """Transcriptions tab — searchable history with copy per row and
 correction-fired badges. Rows share a strict column grid so timestamps,
-source tags and text all line up across entries.
+source tags and text all line up across entries. Supports exporting the
+current (filtered) list to plain text, Markdown, or CSV.
 """
 
 from __future__ import annotations
 
 import datetime as _dt
+import os
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QApplication,
+    QFileDialog,
     QGridLayout,
+    QHBoxLayout,
     QLabel,
     QLineEdit,
     QListWidget,
     QListWidgetItem,
+    QMenu,
     QPushButton,
     QVBoxLayout,
     QWidget,
@@ -103,6 +108,13 @@ class HistoryRow(QWidget):
             grid.addWidget(corr, row, 2, 1, 2, Qt.AlignmentFlag.AlignTop)
             row += 1
 
+        if entry.get("inserted") is False:
+            warn = QLabel("NOT INSERTED — text is on the clipboard (Ctrl+V)")
+            warn.setFont(silk)
+            warn.setStyleSheet(f"color: {Color.LEVEL_AMBER}; background: transparent;")
+            grid.addWidget(warn, row, 2, 1, 2, Qt.AlignmentFlag.AlignTop)
+            row += 1
+
         if entry.get("duration"):
             dur = _label(f"{entry['duration']:.1f}s", Color.TEXT_FAINT, mono)
             grid.addWidget(dur, row, 2, Qt.AlignmentFlag.AlignTop)
@@ -136,11 +148,20 @@ class HistoryTab(QWidget):
         layout.setContentsMargins(Space.LG, Space.LG, Space.LG, Space.LG)
         layout.setSpacing(Space.MD)
 
+        top = QHBoxLayout()
+        top.setSpacing(Space.MD)
         self.search = QLineEdit()
         self.search.setPlaceholderText("SEARCH HISTORY — TEXT OR RAW…")
         self.search.setFont(QFont(Type.FONT_MONO, Type.BODY, Type.WEIGHT_MEDIUM))
         self.search.textChanged.connect(self._apply_filter)
-        layout.addWidget(self.search)
+        top.addWidget(self.search, stretch=1)
+
+        export = QPushButton("EXPORT")
+        export.setCursor(Qt.CursorShape.PointingHandCursor)
+        export.setToolTip("Export the current list to text, Markdown, or CSV")
+        export.clicked.connect(self._export)
+        top.addWidget(export)
+        layout.addLayout(top)
 
         self.list = QListWidget()
         self.list.setSpacing(Space.XS)
@@ -148,11 +169,11 @@ class HistoryTab(QWidget):
         self.list.itemClicked.connect(self._on_item_clicked)
         layout.addWidget(self.list, stretch=1)
 
-        hint = QLabel("Ctrl+click a row to copy · Ctrl+Z undoes what Grogu "
-                      "typed · corrections fired show in amber.")
-        hint.setStyleSheet(f"color: {Color.TEXT_FAINT}; background: transparent;")
-        hint.setFont(QFont(Type.FONT_UI, Type.MICRO, Type.WEIGHT_REGULAR))
-        layout.addWidget(hint)
+        self.hint = QLabel("Ctrl+click a row to copy · Ctrl+Z undoes what "
+                           "Grogu typed · corrections fired show in amber.")
+        self.hint.setStyleSheet(f"color: {Color.TEXT_FAINT}; background: transparent;")
+        self.hint.setFont(QFont(Type.FONT_UI, Type.MICRO, Type.WEIGHT_REGULAR))
+        layout.addWidget(self.hint)
 
         self.refresh()
 
@@ -181,3 +202,41 @@ class HistoryTab(QWidget):
                 QApplication.clipboard().setText(
                     self._entries[row].get("text", "")
                 )
+
+    def _export(self) -> None:
+        """Save the current (filtered) entries to a file chosen by the user."""
+        fmt, path = self._ask_export_target()
+        if not path:
+            return
+        try:
+            self.history.export(self._entries, fmt=fmt, path=path)
+            self._flash_exported(os.path.basename(path))
+        except OSError as e:
+            from PySide6.QtWidgets import QMessageBox
+
+            QMessageBox.warning(self, "Grogu", f"Could not export: {e}")
+
+    def _ask_export_target(self) -> tuple[str, str]:
+        """Show a save dialog; returns (fmt, path) or ("", "") if cancelled."""
+        default = os.path.join(
+            os.path.expanduser("~"), "Grogu-history.txt"
+        )
+        path, _sel = QFileDialog.getSaveFileName(
+            self,
+            "Export transcriptions",
+            default,
+            "Plain text (*.txt);;Markdown (*.md);;CSV (*.csv)",
+        )
+        if not path:
+            return "", ""
+        ext = os.path.splitext(path)[1].lower().lstrip(".")
+        fmt = ext if ext in ("txt", "md", "csv") else "txt"
+        return fmt, path
+
+    def _flash_exported(self, name: str) -> None:
+        """Briefly swap the hint text to confirm the export landed."""
+        from PySide6.QtCore import QTimer
+
+        original = self.hint.text()
+        self.hint.setText(f"Exported {len(self._entries)} entries → {name}")
+        QTimer.singleShot(3000, lambda: self.hint.setText(original))

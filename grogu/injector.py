@@ -324,6 +324,11 @@ def _set_clipboard(text: str) -> bool:
         return False
 
 
+def set_clipboard_text(text: str) -> bool:
+    """Public wrapper: put ``text`` on the clipboard as Unicode text."""
+    return _set_clipboard(text)
+
+
 def _paste_from_clipboard() -> None:
     _send_one(_vk_input(VK_CONTROL, False))
     _send_pair(_vk_input(VK_V, False), _vk_input(VK_V, True))

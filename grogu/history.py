@@ -10,10 +10,15 @@ Each line is one dictation:
       "source": "hotkey",
       "duration": 3.2
     }
+
+Also provides plain-text / Markdown / CSV export for the history tab.
 """
 
 from __future__ import annotations
 
+import csv
+import datetime as _dt
+import io
 import json
 import os
 import time
@@ -82,3 +87,78 @@ class HistoryStore:
             os.remove(self.path)
         except OSError:
             pass
+
+    # -- export -------------------------------------------------------------
+    def export(self, entries: list[dict[str, Any]], fmt: str = "txt",
+               path: str | None = None) -> str:
+        """Serialize ``entries`` to text/markdown/csv.
+
+        Returns the formatted string; writes it to ``path`` when given.
+        ``fmt`` is one of "txt", "md", "csv".
+        """
+        fmt = fmt.lower()
+        if fmt == "csv":
+            out = self._to_csv(entries)
+        elif fmt == "md":
+            out = self._to_markdown(entries)
+        else:
+            out = self._to_text(entries)
+        if path:
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(out)
+        return out
+
+    @staticmethod
+    def _fmt_ts(ts: float) -> str:
+        try:
+            return _dt.datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S")
+        except (OSError, ValueError):
+            return ""
+
+    @staticmethod
+    def _corrections_str(entry: dict[str, Any]) -> str:
+        fired = entry.get("corrections") or []
+        return "; ".join(
+            f"{c.get('heard', '')} → {c.get('write', '')}"
+            for c in fired
+        )
+
+    def _to_text(self, entries: list[dict[str, Any]]) -> str:
+        blocks: list[str] = []
+        for e in entries:
+            lines = [
+                f"{self._fmt_ts(e.get('ts', 0))}  [{e.get('source', 'hotkey')}]",
+                e.get("text", ""),
+            ]
+            corr = self._corrections_str(e)
+            if corr:
+                lines.append(f"corrections: {corr}")
+            blocks.append("\n".join(lines))
+        return "\n\n".join(blocks) + ("\n" if blocks else "")
+
+    def _to_markdown(self, entries: list[dict[str, Any]]) -> str:
+        blocks: list[str] = []
+        for e in entries:
+            lines = [
+                f"## {self._fmt_ts(e.get('ts', 0))} — {e.get('source', 'hotkey')}",
+                "",
+                e.get("text", ""),
+            ]
+            corr = self._corrections_str(e)
+            if corr:
+                lines += ["", f"*Corrections applied: {corr}*"]
+            blocks.append("\n".join(lines))
+        return "\n\n".join(blocks) + ("\n" if blocks else "")
+
+    def _to_csv(self, entries: list[dict[str, Any]]) -> str:
+        buf = io.StringIO()
+        writer = csv.writer(buf, lineterminator="\n")
+        writer.writerow(["timestamp", "source", "text", "corrections"])
+        for e in entries:
+            writer.writerow([
+                self._fmt_ts(e.get("ts", 0)),
+                e.get("source", "hotkey"),
+                e.get("text", ""),
+                self._corrections_str(e),
+            ])
+        return buf.getvalue()

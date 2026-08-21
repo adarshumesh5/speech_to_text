@@ -77,6 +77,7 @@ class Tray:
         service.muted_changed.connect(self._on_muted)
         service.dictation_done.connect(self._on_dictation_done)
         service.error.connect(self._on_error)
+        service.toast.connect(self.notify)
 
     # -- lifecycle ----------------------------------------------------------
     def show(self) -> None:

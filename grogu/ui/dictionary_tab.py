@@ -2,15 +2,19 @@
 
 Two sections: WORDS (sent to the engine as context, capped) and CORRECTIONS
 (guaranteed rewrite pass after transcription, tolerant of glued words). Both
-are editable in the UI and as a plain JSON file.
+are editable in the UI and as a plain JSON file. Supports exporting the
+dictionary to JSON and merging another dictionary JSON back in.
 """
 
 from __future__ import annotations
+
+import os
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QDialog,
+    QFileDialog,
     QFormLayout,
     QHBoxLayout,
     QLabel,
@@ -220,6 +224,21 @@ class DictionaryTab(QWidget):
         hint.setFont(QFont(Type.FONT_UI, Type.MICRO, Type.WEIGHT_REGULAR))
         layout.addWidget(hint)
 
+        io_row = QHBoxLayout()
+        io_row.setSpacing(Space.SM)
+        btn_export = QPushButton("EXPORT JSON")
+        btn_export.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_export.setToolTip("Save the dictionary as a JSON backup")
+        btn_export.clicked.connect(self._export_json)
+        btn_import = QPushButton("IMPORT JSON")
+        btn_import.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_import.setToolTip("Merge a dictionary JSON file into this one (no overwrites)")
+        btn_import.clicked.connect(self._import_json)
+        io_row.addWidget(btn_export)
+        io_row.addWidget(btn_import)
+        io_row.addStretch(1)
+        layout.addLayout(io_row)
+
         # wiring
         self.words_section.add_btn.clicked.connect(lambda: self._add_word())
         self.words_section.edit_btn.clicked.connect(lambda: self._edit_word())
@@ -325,4 +344,53 @@ class DictionaryTab(QWidget):
             self.corr_section.list.addItem(item)
             self.corr_section.list.setItemWidget(
                 item, CorrectionRow(c.heard, c.write)
+            )
+
+    # -- import / export ----------------------------------------------------
+    def _export_json(self) -> None:
+        default = os.path.join(
+            os.path.expanduser("~"), "grogu-dictionary.json"
+        )
+        path, _sel = QFileDialog.getSaveFileName(
+            self, "Export dictionary", default, "JSON (*.json)"
+        )
+        if not path:
+            return
+        try:
+            self.dictionary.export_to(path)
+            QMessageBox.information(
+                self, "Grogu",
+                f"Exported {len(self.dictionary.words)} words and "
+                f"{len(self.dictionary.corrections)} corrections to\n{path}",
+            )
+        except OSError as e:
+            QMessageBox.warning(self, "Grogu", f"Could not export: {e}")
+
+    def _import_json(self) -> None:
+        path, _sel = QFileDialog.getOpenFileName(
+            self, "Import dictionary", os.path.expanduser("~"),
+            "JSON (*.json)",
+        )
+        if not path:
+            return
+        try:
+            counts = self.dictionary.import_from(path)
+        except (OSError, ValueError) as e:
+            QMessageBox.warning(
+                self, "Grogu", f"Could not import {path}:\n{e}"
+            )
+            return
+        self.refresh()
+        total = counts["words"] + counts["corrections"]
+        if total == 0:
+            QMessageBox.information(
+                self, "Grogu",
+                "Nothing new to import — every entry in that file is "
+                "already in your dictionary.",
+            )
+        else:
+            QMessageBox.information(
+                self, "Grogu",
+                f"Imported {counts['words']} word(s) and "
+                f"{counts['corrections']} correction(s).",
             )

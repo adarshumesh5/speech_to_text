@@ -98,6 +98,7 @@ class DictationService(QObject):
     error = Signal(str)
     muted_changed = Signal(bool)
     dictation_done = Signal(dict)  # {raw, text, corrections, duration, source, ts}
+    toast = Signal(str, str)       # (title, message) — non-blocking tray bubble
 
     def __init__(self, config, dictionary: Dictionary | None = None, parent=None):
         super().__init__(parent)
@@ -418,6 +419,8 @@ class DictationService(QObject):
                 return
             # guaranteed correction pass — biasing is only a nudge
             final, fired = self.dictionary.apply_corrections(final)
+            if self.config.learn_from_corrections and fired:
+                self._learn_fired_corrections(fired)
             self._set_state(STATE_TYPING)
             self._cancel.clear()
 
@@ -441,22 +444,55 @@ class DictationService(QObject):
             duration = len(audio) / 16000.0 if audio.size else 0.0
             log.info("typed %r (completed=%s, corrections=%d)",
                      final, ok, len(fired))
-            if ok:
-                entry = {
-                    "raw": raw,
-                    "text": final,
-                    "corrections": fired,
-                    "duration": duration,
-                    "source": source,
-                    "ts": time.time(),
-                }
-                self.last_dictation = entry
-                self.dictation_done.emit(entry)
+            if not ok:
+                # Insertion failed (elevated target app, focus lock, etc.) —
+                # never lose the text: put it on the clipboard and tell the
+                # user where it went instead of failing silently.
+                from grogu.injector import set_clipboard_text
+
+                set_clipboard_text(final)
+                self.toast.emit(
+                    "Grogu — couldn't insert text",
+                    "The target app may be running as administrator. The text "
+                    "is on your clipboard — press Ctrl+V to paste it.",
+                )
+            entry = {
+                "raw": raw,
+                "text": final,
+                "corrections": fired,
+                "duration": duration,
+                "source": source,
+                "ts": time.time(),
+                "inserted": ok,
+            }
+            self.last_dictation = entry
+            self.dictation_done.emit(entry)
         except Exception as e:  # noqa: BLE001
             log.exception("dictation failed")
             self.error.emit(str(e))
         finally:
             self._set_state(STATE_IDLE)
+
+    def _learn_fired_corrections(self, fired: list[dict]) -> None:
+        """Auto-teach the dictionary every correction that just fired.
+
+        Adds the heard→write pair as a correction entry if it isn't already
+        there, so the engine keeps catching it on future dictations.
+        """
+        for c in fired:
+            heard, write = c.get("heard", ""), c.get("write", "")
+            if not heard or not write:
+                continue
+            # skip if the pair is already taught (case-insensitive)
+            if any(x.heard.lower() == heard.lower()
+                   and x.write.lower() == write.lower()
+                   for x in self.dictionary.corrections):
+                continue
+            try:
+                self.dictionary.add_correction(heard, write)
+                log.info("learned correction %r → %r", heard, write)
+            except ValueError:
+                continue
 
     # -- state --------------------------------------------------------------
     def _set_state(self, state: str) -> None:

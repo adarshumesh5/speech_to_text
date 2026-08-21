@@ -75,6 +75,7 @@ class Config:
     vad_filter: bool = True
     sound_cues: bool = True
     notify_on_dictation: bool = True
+    learn_from_corrections: bool = False  # auto-add fired corrections to dictionary
     start_with_windows: bool = False
     start_minimized: bool = False
     insertion_mode: str = "clipboard"  # "clipboard" | "keystrokes" | "smart"
