@@ -40,6 +40,49 @@ Download the latest installer from [Releases](https://github.com/adarshumesh5/sp
 
 **Note:** First run downloads the Whisper model (~500 MB). Subsequent runs are instant.
 
+## Changelog
+
+### v0.2.1 — Pointer Fix (Latest)
+
+> Merged via [PR #1](https://github.com/adarshumesh5/speech_to_text/pull/1) on Aug 21, 2026.
+
+**The fix:** dictated text now lands **exactly where your cursor is blinking**, even when another window has focus when you press the hotkey.
+
+What changed:
+
+- **Caret tracking** — Grogu watches all visible windows for the one with the blinking cursor and remembers it, so it knows where you were typing even if you switch apps before dictating
+- **Direct paste into the text control** — text is pasted straight into the target app's edit control (works in Notepad, browsers, editors) without needing to steal focus first
+- **Verified delivery** — Grogu checks that the text actually landed and only reports success when it did
+- **Never targets terminal windows** — Freebuff, cmd.exe, Windows Terminal, and other console windows are ignored as dictation targets
+- **No more focus-stealing on startup** — Grogu starts hidden and stays out of the way
+- **Clipboard fallback** — if an app blocks direct insertion, text goes to your clipboard with a notification (just press `Ctrl+V`)
+
+**How to install this build:**
+
+```powershell
+# From source
+git clone https://github.com/adarshumesh5/speech_to_text.git
+cd speech_to_text
+git checkout master          # pointer fix is on master
+python -m venv .venv
+.venv\Scripts\activate
+pip install -e ".[dev]"
+python scripts\make_assets.py
+python -m sotto
+```
+
+Or download the latest MSI from [Releases](https://github.com/adarshumesh5/speech_to_text/releases) and run it.
+
+### v0.2.0 — Grogu (Star Wars Edition)
+
+- Renamed to **Grogu** with a full Star Wars-inspired UI
+- **Lightsaber recording indicator** — ignites and glows while you speak
+- Local GPU transcription (faster-whisper on CUDA)
+- Smart cleanup (filler-word removal)
+- Custom dictionary (words + corrections)
+- Global hotkey (`Ctrl+Shift+Space`)
+- System tray, start-with-Windows, sound cues, undo
+
 ## Install from Source (For Developers)
 
 ### Prerequisites
