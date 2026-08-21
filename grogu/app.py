@@ -157,7 +157,14 @@ def main(argv: list[str] | None = None) -> int:
     elif wanted["minimized"]:
         pass  # already handled above
 
-    if not config._extra.get("first_run_done"):
+    if not config._extra.get("onboarding_done"):
+        from grogu.ui.onboarding import OnboardingWizard
+
+        wizard = OnboardingWizard(config, service)
+        wizard.exec()
+        config._extra["onboarding_done"] = True
+        config.save()
+    elif not config._extra.get("first_run_done"):
         tray.notify(
             f"{APP_NAME} is ready",
             f"Hold {config.hotkey} and speak. Release to type.\n\n{APP_TAGLINE}",

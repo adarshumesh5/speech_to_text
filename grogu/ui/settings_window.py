@@ -195,6 +195,16 @@ class SettingsWindow(QDialog):
         note.setWordWrap(True)
         note.setStyleSheet(f"color: {Color.TEXT_FAINT}; font-size: 11px;")
         form.addRow("", note)
+
+        manage_row = QHBoxLayout()
+        btn_models = QPushButton("Manage Models…")
+        btn_models.setObjectName("Keycap")
+        btn_models.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_models.setToolTip("Pre-download models, see sizes, delete cached models")
+        btn_models.clicked.connect(self._open_model_manager)
+        manage_row.addWidget(btn_models)
+        manage_row.addStretch(1)
+        form.addRow("", manage_row)
         layout.addWidget(group)
 
         # --- system ---
@@ -228,6 +238,12 @@ class SettingsWindow(QDialog):
         layout.addLayout(buttons)
 
     # -- actions ------------------------------------------------------------
+    def _open_model_manager(self) -> None:
+        from grogu.ui.model_manager import ModelManagerDialog
+
+        dlg = ModelManagerDialog(self)
+        dlg.exec()
+
     def _test_hotkey(self) -> None:
         """Probe the OS right now and report the specific outcome."""
         spec = self.hotkey_edit.keySequence().toString()
