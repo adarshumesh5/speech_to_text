@@ -15,7 +15,7 @@ from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QMenu, QSystemTrayIcon
 
 from grogu import APP_NAME
-from grogu.dictation import STATE_LISTENING
+from grogu.dictation import STATE_LISTENING, STATE_PAUSED
 from grogu.injector import send_text
 from grogu.ui.theme import QSS
 
@@ -102,7 +102,7 @@ class Tray:
         self.tray.setIcon(self._current_icon())
 
     def _on_state(self, state: str) -> None:
-        if state == STATE_LISTENING:
+        if state in (STATE_LISTENING, STATE_PAUSED):
             self._set_state_icon("rec")
         elif self.service.muted:
             self._set_state_icon("muted")
@@ -136,6 +136,12 @@ class Tray:
         self._act_undo.setEnabled(bool(entry.get("corrections")))
         text = entry.get("text", "")
         corrections = entry.get("corrections", [])
+
+        # Voice commands: confirm what ran instead of showing a text snippet.
+        if entry.get("kind") == "command":
+            if self.service.config.notify_on_dictation:
+                self.notify(f"{APP_NAME} — command", f"✓ {text}")
+            return
 
         # Build a clear notification message
         if self.service.config.insertion_mode == "clipboard":

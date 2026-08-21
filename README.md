@@ -28,13 +28,16 @@ tray icon for status and dictation while you work in other apps.
 - **System tray** — dictate without opening the window
 - **Start with Windows** — optional auto-start
 - **Sound cues** — lightsaber ignite/retract sounds
+- **Voice commands** — say "undo last", "select all", "delete last word", "caps on/off" and Grogu edits for you
+- **Pause / resume** — pause a long recording mid-sentence and pick up where you left off
+- **Per-app insertion modes** — remember clipboard vs. keystrokes per application
 - **Undo** — Ctrl+Z reverses the last dictation
 
 ## Quick Install (Pre-built)
 
 Download the latest installer from [Releases](https://github.com/adarshumesh5/speech_to_text/releases):
 
-1. Download `Grogu-0.4.0.msi` (or latest version)
+1. Download `Grogu-0.5.0.msi` (or latest version)
 2. Run the installer
 3. Pin Grogu to your Start menu or Taskbar
 4. Hold `Ctrl+Shift+Space` and speak
@@ -44,7 +47,26 @@ Download the latest installer from [Releases](https://github.com/adarshumesh5/sp
 
 ## Changelog
 
-### v0.4.0 — Phase 2: Model Manager + Onboarding (Latest)
+### v0.5.0 — Phase 3: Voice Editing (Latest)
+
+Dictation becomes a real input method — speak commands, not just text:
+
+- **Voice command layer** — when the *entire* dictation is a command, Grogu
+  executes it instead of typing it: "undo last" (Ctrl+Z), "select all",
+  "delete last word", "caps on/off", "new line", "new paragraph". Commands
+  can be chained ("select all and delete") and are only recognised as whole
+  utterances, so real speech like "I want to undo last week's meeting" is
+  never eaten. Executed commands appear in history with an amber **CMD**
+  badge and a confirmation notification
+- **Pause / resume** — new PAUSE button freezes recording mid-clip (no audio
+  lost) and resumes exactly where you left off; REC also resumes, and Esc
+  still cancels while paused
+- **Per-app insertion modes** — Settings → "Per-app insertion mode" lets you
+  override clipboard vs. keystrokes per application (e.g. notepad.exe →
+  Keystrokes), so apps that only accept one method work every time without
+  re-teaching
+
+### v0.4.0 — Phase 2: Model Manager + Onboarding
 
 First-run experience and model management:
 
@@ -161,7 +183,7 @@ To build the MSI installer for distribution:
 
 This creates:
 - `dist\Grogu\Grogu.exe` — portable build
-- `dist\Grogu-0.4.0.msi` — installer (Windows 10/11)
+- `dist\Grogu-0.5.0.msi` — installer (Windows 10/11)
 
 ## Usage
 
@@ -181,6 +203,23 @@ This creates:
 | `Ctrl+Z` | Undo last dictation |
 | `Ctrl+,` | Open Settings |
 | `Ctrl+F` | Search history |
+
+### Voice Commands
+
+Hold the hotkey and say a command as the *whole* dictation — Grogu runs the
+editing keystroke instead of typing text:
+
+| Say | Action |
+|-----|--------|
+| "undo last" | Ctrl+Z (undo the last edit) |
+| "select all" | Ctrl+A |
+| "delete last word" | Delete the word before the cursor |
+| "select all and delete" | Chained commands (join with "and" / "then") |
+| "caps on" / "caps off" | Toggle Caps Lock to the requested state |
+| "new line" / "new paragraph" | Press Enter (once / twice) |
+
+Commands only fire when the whole utterance is a command, so ordinary speech
+is never swallowed.
 
 ### Custom Dictionary
 
@@ -251,7 +290,7 @@ Run the test suite:
 pytest -v
 ```
 
-71 tests covering: hotkey registration, config migration, dictionary matching, history storage, and more.
+130 tests covering: hotkey registration, config migration, dictionary matching, history storage, voice commands, pause/resume, per-app modes, and more.
 
 ## License
 

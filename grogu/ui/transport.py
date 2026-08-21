@@ -17,7 +17,7 @@ from grogu.ui.design_tokens import Color, Component, Motion, Radius, Type
 class TransportButton(QWidget):
     clicked = Signal()
 
-    def __init__(self, label: str, primary: bool = False, parent=None):
+    def __init__(self, label: str, primary: bool = False, width: int = 96, parent=None):
         super().__init__(parent)
         self._label = label
         self._primary = primary      # cyan face (REC)
@@ -28,7 +28,7 @@ class TransportButton(QWidget):
         self._anim = QTimer(self)
         self._anim.setInterval(Motion.PRESS_MS // 2)
         self._anim.timeout.connect(self._tick_anim)
-        self.setFixedSize(96, 44)
+        self.setFixedSize(width, 44)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
 
