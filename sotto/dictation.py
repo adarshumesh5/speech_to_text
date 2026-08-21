@@ -11,6 +11,7 @@ States: idle → listening → (preparing) → transcribing → cleaning → typ
 
 from __future__ import annotations
 
+import ctypes
 import logging
 import queue
 import threading
@@ -36,6 +37,42 @@ from sotto.stt import SttEngine
 log = logging.getLogger(__name__)
 
 VK_ESCAPE = 0x1B
+
+# Window class names for console/terminal/host windows that should never
+# be dictation targets (they host Grogu but the user never wants to type into them).
+_CONSOLE_CLASSES = frozenset({
+    "ConsoleWindowClass",   # cmd.exe / conhost
+    "CiceroUIWndFrame",     # Windows speech UI
+    "CicTerminalWnd",       # Windows Terminal
+    "PuTTY",                # PuTTY
+    "VirtualConsoleClass",  # ConEmu / Cmder
+    "WnxBand",              # WSL
+})
+
+# Host application names that launch Grogu — never dictation targets.
+_HOST_TITLE_KEYWORDS = ("freebuff", "codebuff")
+
+def _is_console_or_host_window(hwnd: int) -> bool:
+    """True when *hwnd* is a console, terminal, or the host IDE that
+    launched Grogu — windows the user never wants to dictate into."""
+    if not hwnd:
+        return False
+    try:
+        u32 = ctypes.WinDLL("user32", use_last_error=True)
+        buf = ctypes.create_unicode_buffer(256)
+        u32.GetClassNameW(hwnd, buf, 256)
+        if buf.value in _CONSOLE_CLASSES:
+            return True
+        # Also check the title for known host apps (Electron-based)
+        length = u32.GetWindowTextLengthW(hwnd)
+        if length > 0:
+            title_buf = ctypes.create_unicode_buffer(length + 1)
+            u32.GetWindowTextW(hwnd, title_buf, length + 1)
+            title_lower = title_buf.value.lower()
+            return any(kw in title_lower for kw in _HOST_TITLE_KEYWORDS)
+    except Exception:  # noqa: BLE001
+        pass
+    return False
 
 STATE_IDLE = "idle"
 STATE_PREPARING = "preparing"
@@ -184,8 +221,11 @@ class DictationService(QObject):
             pass
         # Continuously track the last external window so foreign_hwnd is
         # always fresh, even if ApplicationInactive never fires.
+        # Never overwrite with console/terminal windows (Freebuff, cmd, etc.).
         cur_fg = get_foreground_hwnd()
-        if cur_fg and not is_own_window(cur_fg):
+        if (cur_fg
+                and not is_own_window(cur_fg)
+                and not _is_console_or_host_window(cur_fg)):
             self._foreign_hwnd = cur_fg
         try:
             while True:
@@ -238,8 +278,11 @@ class DictationService(QObject):
 
         Called when the app loses focus; used to restore the target when the
         user starts dictation from Grogu's own REC button (which has focus).
+        Never stores console/terminal windows.
         """
-        if hwnd and not is_own_window(hwnd):
+        if (hwnd
+                and not is_own_window(hwnd)
+                and not _is_console_or_host_window(hwnd)):
             log.debug("remember_foreign_hwnd: hwnd=%s title=%r", hwnd, get_window_title(hwnd))
             self._foreign_hwnd = hwnd
 
@@ -248,38 +291,53 @@ class DictationService(QObject):
             return
         self._source = source
 
-        # Strategy: find the window with the blinking cursor (caret).
-        # Do an immediate scan of all windows — the cached value may be stale.
-        from sotto.caret import find_caret_window
-        caret_hwnd, caret_title = find_caret_window()
+        # ---- Target window selection ----
+        # Priority:
+        #  1. Cached caret window — the last app where a caret was visible.
+        #     This survives focus changes (e.g. user clicks Notepad, switches
+        #     to Freebuff, presses hotkey). The live scan misses unfocused carets.
+        #  2. fg_hwnd captured at hotkey-press time (if it's an external app
+        #     the user was actually in).
+        #  3. _foreign_hwnd — last known external foreground window.
+        #  4. Current foreground — last resort.
+        target = 0
 
-        if caret_hwnd and not is_own_window(caret_hwnd):
-            # Found a caret window — use it as the target
-            self._target_hwnd = caret_hwnd
-            log.info("_start_listening: using caret window hwnd=%s title=%r",
-                     caret_hwnd, caret_title)
-        elif fg_hwnd and not is_own_window(fg_hwnd):
-            # No caret found, but hotkey captured an external window
-            self._target_hwnd = fg_hwnd
-            log.info("_start_listening: using hotkey-captured fg_hwnd=%s title=%r",
-                     fg_hwnd, get_window_title(fg_hwnd))
-        else:
-            # Fallback: foreground window
-            fg_hwnd = get_foreground_hwnd()
-            fg_title = get_window_title(fg_hwnd)
-            own_fg = is_own_window(fg_hwnd)
+        # 1. Cached caret tracker value (remembers Notepad even when unfocused)
+        cached_hwnd, cached_title = self._caret_tracker.get_target()
+        if cached_hwnd and not is_own_window(cached_hwnd):
+            target = cached_hwnd
+            log.info("_start_listening [1-caret]: hwnd=%s title=%r",
+                     cached_hwnd, cached_title)
 
-            log.info("_start_listening: source=%s, fg_hwnd=%s fg_title=%r is_own=%s",
-                     source, fg_hwnd, fg_title, own_fg)
+        # 2. Hotkey-captured foreground (valid only if it's a real app,
+        #    not a console/terminal that just happens to host us)
+        if not target and fg_hwnd and not is_own_window(fg_hwnd):
+            if not _is_console_or_host_window(fg_hwnd):
+                target = fg_hwnd
+                log.info("_start_listening [2-hotkey-fg]: hwnd=%s title=%r",
+                         fg_hwnd, get_window_title(fg_hwnd))
 
-            if own_fg:
-                log.info("_start_listening: Grogu is focused, using foreign_hwnd=%s",
-                         self._foreign_hwnd)
-                self._target_hwnd = self._foreign_hwnd
-            else:
-                self._target_hwnd = fg_hwnd
+        # 3. Foreign hwnd (last external window, set by poll timer)
+        if not target and self._foreign_hwnd and not is_own_window(self._foreign_hwnd):
+            if not _is_console_or_host_window(self._foreign_hwnd):
+                target = self._foreign_hwnd
+                log.info("_start_listening [3-foreign]: hwnd=%s title=%r",
+                         self._foreign_hwnd, get_window_title(self._foreign_hwnd))
 
-        log.info("_start_listening: final target_hwnd=%s title=%r",
+        # 4. Current foreground as last resort
+        if not target:
+            cur_fg = get_foreground_hwnd()
+            if cur_fg and not is_own_window(cur_fg) and not _is_console_or_host_window(cur_fg):
+                target = cur_fg
+                log.info("_start_listening [4-fg-fallback]: hwnd=%s title=%r",
+                         cur_fg, get_window_title(cur_fg))
+
+        if not target:
+            log.warning("_start_listening: no valid target found — "
+                        "text will go to clipboard only")
+
+        self._target_hwnd = target
+        log.info("_start_listening: FINAL target_hwnd=%s title=%r",
                  self._target_hwnd, get_window_title(self._target_hwnd))
 
         self._cancel.clear()
